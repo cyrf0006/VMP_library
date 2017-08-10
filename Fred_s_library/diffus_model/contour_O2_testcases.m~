@@ -1,0 +1,82 @@
+clear
+
+% Output idea
+figure(1)
+clf
+set(gcf,'PaperUnits','centimeters','PaperPosition',[10 10 16 10])
+O2min = 60;
+O2max = 200;
+ucurrent = 0.01; %m/s
+
+
+
+% s1
+s1 = subplot('position', [.9 .05 .08 .7]);
+load SOD
+SOD = SOD/10000*365*24*3600;
+X = abs(t-t(end))*86400*ucurrent/1000;
+plot(X,SOD, 'k')
+
+% s2
+s2 = subplot('position', [.7 .05 .15 .7]);
+load test_a.mat
+V = O2min:5:O2max;
+contourf(X, P, Tmat)
+hold on
+[c, h] = contour(X, P, Tmat, V, 'color', 'k');
+set(h,'ShowText','on', 'textstep', get(h,'LevelStep')*2);
+hold off
+set(gca, 'ydir', 'reverse')
+cmap = lbmap(128,'RedBlue');
+colormap(flipud(cmap));
+caxis([O2min O2max])
+
+% s2.2
+s22 = subplot('position', [.7 .8 .15 .2]);
+plot(Tmat(:,1), P, '--k')
+hold on
+plot(Tmat(:,end), P, 'k')
+hold off
+
+% s3
+s3 = subplot('position', [.4 .05 .25 .7]);
+load test_b.mat
+V = O2min:10:O2max;
+contourf(X, P, Tmat)
+hold on
+[c, h] = contour(X, P, Tmat, V, 'color', 'k');
+set(h,'ShowText','on', 'textstep', get(h,'LevelStep')*2);
+hold off
+set(gca, 'ydir', 'reverse')
+cmap = lbmap(128,'RedBlue');
+colormap(flipud(cmap));
+caxis([O2min O2max])
+
+% s3.3
+s33 = subplot('position', [.4 .8 .25 .2]);
+plot(Tmat(:,1), P, '--k')
+hold on
+plot(Tmat(:,end), P, 'k')
+hold off
+
+
+% s4
+s4 = subplot('position', [.1 .05 .25 .7]);
+load test_c.mat
+V = O2min:10:O2max;
+contourf(X, P, Tmat)
+hold on
+[c, h] = contour(X, P, Tmat, V, 'color', 'k');
+set(h,'ShowText','on', 'textstep', get(h,'LevelStep')*2);
+hold off
+set(gca, 'ydir', 'reverse')
+cmap = lbmap(128,'RedBlue');
+colormap(flipud(cmap));
+caxis([O2min O2max])
+
+% s4.4
+s44 = subplot('position', [.1 .8 .25 .2]);
+plot(Tmat(:,1), P, '--k')
+hold on
+plot(Tmat(:,end), P, 'k')
+hold off

@@ -1,0 +1,136 @@
+% This script converts raw VMP data (.p files) to physical measurements
+% and stored them in a Matlab file (.mat).
+%
+% Naming convention:
+%   Upper-case variables mean fine-scale measurements (e.g. Seabird, Pressure)
+%   Lower-case variables mean micro-scale measurements (e.g. shear)
+%
+% Author: Daniel Bourgault - 2009/07/24
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Parameters
+data_fname = 'DAT000';    % Without the .P extension
+setup_fname = 'SETUP.TXT';
+
+G1 = 1.045;  % Shear Channel 1 differentiator gain.
+G2 = 1.010;  % Shear Channel 2 differentiator gain.
+S1 = 0.1240; % Shear probe sensitivity (M484)
+S2 = 0.1269; % Shear probe sensitivity (M485)
+
+% Diff. gain for pressure deconvolution (from calibration report)
+diff_gain_P  = 20.1;
+diff_gain_t1 = 0.980;
+diff_gain_t2 = 0.995;
+diff_gain_c1 = 1.000;
+
+% Calibration coefficients for fluorescence and transmissometer
+A_trans = -3.195060;
+B_trans = 5.508724e-2;
+A_fluoro = -6.41017;
+B_fluoro = 8.90302e-2;
+
+%%
+
+% Read the .p file and write the data to a mat-file.
+% From this step the data are not yet in physical units. 
+read_odas([data_fname,'.P']);
+
+% Load the data from the .mat file just created above.
+load([data_fname,'.mat']);
+
+% Determine from the header the number of fast and slow column
+% and other information from the address matrix.
+matrix_rows  = header(2,31);
+fast_columns = header(2,29);
+slow_columns = header(2,30);
+columns = slow_columns + fast_columns;
+
+clock_rate = header(2,21) + header(2,22)/1000; 
+fs = clock_rate / columns; % Calculate the exact fast sampling frequency.
+FS = fs / matrix_rows;     % Calculate the exact slow sampling frequency.
+fs_units = 'Hz'; FS_units = 'Hz';
+
+% Make time vectors
+nmax_slow = length(P); 
+nmax_fast = length(sh1);
+t_slow = (0:nmax_slow-1)'/FS; 
+t_fast = (0:nmax_fast-1)'/fs;
+
+% Pressure deconvolution and conversion to physical units.
+Ptmp = deconvolve('pressure', P, P_dP, FS, diff_gain_P);
+clear P P_dP
+[P, P_units] = convert_odas(Ptmp,'pres','file',setup_fname);
+clear Ptmp;
+
+% Interpolate the pressure P (slow sampling) to the fast sampling rate.
+p =  interp1(t_slow, P, t_fast, 'linear','extrap');
+p_units = 'dBar';
+
+% Calculate fall speed W from P and interpolate at the fast sampling rate. 
+% W is smoothed at 1.5 Hz.
+%Nyquist = FS/2; 
+%Wn = 1.5/Nyquist;
+W = gradient(P, 1/FS);
+%[b,a] = butter(4,Wn);
+%W = filtfilt(b,a,W);
+[b,a] =butter(4,1.5/fs_slow/2);
+W = filtfilt(b,a,W);
+
+w = interp1(t_slow, W, t_fast,'linear','extrap');
+W_units = 'm/s'; w_units = 'm/s';
+
+% Convert accelerometer data to physical units.
+[ax, ax_units] = convert_odas(Ax,'Pitch','file',setup_fname);
+[ay, ay_units] = convert_odas(Ay,'Roll','file',setup_fname);
+[az, az_units] = convert_odas(Az,'Az','file',setup_fname);
+g = 9.81;            % Gravitational acceleration.
+pitch = asind(ax/g); % Convert ax in m/s^2 to degree.
+roll = asind(ay/g);  % Convert ay in m/s^2 to degree.
+pitch_units = 'degree'; 
+roll_units = 'degree';
+
+% Convert shear probe signals to physical units (s^{-1}).
+shear1 = byte2shear(sh1,S1,G1,w);
+shear2 = byte2shear(sh2,S2,G2,w);
+shear1_units = 's^{-1}'; 
+shear2_units = 's^{-1}';
+
+% Despike the shear signals (be careful with this). 
+[shear1, spike1] = despike(shear1);
+[shear2, spike2] = despike(shear2);
+
+% Convert SeaBird T and C signals to physical units and C to salinity
+[SBT, SBT_units] = convert_odas(sbt,'SBT1E','file',setup_fname);
+[SBC, SBC_units] = convert_odas(sbc,'SBC1E','file',setup_fname);
+SBS = salinity(P, SBT, SBC); SBS_units = 'psu';
+clear sbt sbc;
+
+% Deconvolve temperature microstructure
+t1_nonphys = deconvolve('temperature', [], T1_dT1, fs, diff_gain_t1);
+t2_nonphys = deconvolve('temperature', [], T2_dT2, fs, diff_gain_t2);
+t1_nonphys_units = 'non physical temperature';
+t2_nonphys_units = 'non physical temperature';
+clear T1 T1_dT1 T2 T2_dT2
+
+% Deconvolve conductivity microstructure
+c1_nonphys = deconvolve('conductivity', [], C1_dC1, fs, diff_gain_c1);
+c1_nonphys_units = 'non physical conductivity';
+clear C1_dC1
+
+% Convert fluorescence and turbidity to volts and then to physical units.
+[fluoro, fluoro_units] = convert_odas(ch14,'fluoro','file',setup_fname);
+[trans, trans_units]   = convert_odas(ch15,'trans','file',setup_fname);
+fluoro = A_fluoro + B_fluoro*fluoro*1000; % x 1000 to convert to mV.
+trans  = A_trans  + B_trans*trans*1000;   % x 1000 to convert to mV.
+fluoro_units = 'ppb';
+trans_units = 'FTU';
+
+save(data_fname,'date','time',...
+                'fs','FS','fs_units','FS_units',...
+                'P','p','P_units','p_units',...
+                'W','w','W_units','w_units',...
+                'pitch','roll','az','pitch_units','roll_units','az_units',...
+                'shear1','shear2','shear1_units','shear2_units',...
+                't1_nonphys','t2_nonphys','t1_nonphys_units','t2_nonphys_units',...
+                'SBT','SBC','SBS','SBT_units','SBC_units','SBS_units',...
+                'fluoro','trans','fluoro_units','trans_units');

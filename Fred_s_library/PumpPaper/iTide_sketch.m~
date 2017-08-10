@@ -1,0 +1,252 @@
+% $$$ load internalTideCube.mat
+% $$$ 
+% $$$ it = 2;
+% $$$ 
+% $$$ omega = 2*pi/((12.42/24)*86400);
+% $$$ 
+% $$$ x = 0:1:100;
+% $$$ zz = [1 10 20 30 40 50 60 75 100 125 150];
+% $$$ 
+% $$$ %zz = 5:10:150;
+% $$$ 
+% $$$ % $$$ ETA = nan(length(zz), length(y));
+% $$$ % $$$ for i = 1:length(zz)
+% $$$ % $$$     ETA(i,:) = squeeze(etaevol(zz(i), :, 2));
+% $$$ % $$$ end
+% $$$ 
+% $$$ etaCube1 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube2 = nan([length(x), length(y), length(t)]); 
+% $$$ etaCube3 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube4 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube5 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube6 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube7 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube8 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube9 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube10 = nan([length(x), length(y), length(t)]);
+% $$$ etaCube11 = nan([length(x), length(y), length(t)]);
+% $$$ 
+% $$$ % $$$ for j = 1:length(zz)
+% $$$     for i = 1:length(x)
+% $$$         etaCube(j, i) = ETA(j).*cos(omega.*t(1)-kappa*x(i)*1000);
+% $$$     end
+% $$$     plot(x, etaCube(j,:), 'k');
+% $$$     if j==1
+% $$$         hold on
+% $$$     end
+% $$$     
+% $$$ % $$$ end
+% $$$ 
+% $$$ ETA1 = 1*squeeze(etaevol(zz(1), :, 2));
+% $$$ ETA2 = 1*squeeze(etaevol(zz(2), :, 2));
+% $$$ ETA3 = 1*squeeze(etaevol(zz(3), :, 2));
+% $$$ ETA4 = 1*squeeze(etaevol(zz(4), :, 2));
+% $$$ ETA5 = 1*squeeze(etaevol(zz(5), :, 2));
+% $$$ ETA6 = 1*squeeze(etaevol(zz(6), :, 2));
+% $$$ ETA7 = 1*squeeze(etaevol(zz(7), :, 2));
+% $$$ ETA8 = 1*squeeze(etaevol(zz(8), :, 2));
+% $$$ ETA9 = 1*squeeze(etaevol(zz(9), :, 2));
+% $$$ ETA10 = 1*squeeze(etaevol(zz(10), :, 2));
+% $$$ ETA11 = 1*squeeze(etaevol(zz(11), :, 2));
+% $$$ 
+% $$$ 
+% $$$ 
+% $$$ for j = 1:length(t)
+% $$$     for i = 1:length(x)
+% $$$         etaCube1(i,:,j) = ETA1.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube2(i,:,j) = ETA2.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube3(i,:,j) = ETA3.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube4(i,:,j) = ETA4.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube5(i,:,j) = ETA5.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube6(i,:,j) = ETA6.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube7(i,:,j) = ETA7.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube8(i,:,j) = ETA8.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube9(i,:,j) = ETA9.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube10(i,:,j) = ETA10.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$         etaCube11(i,:,j) = ETA11.*cos(omega.*t(j)-kappa*x(i)*1000);
+% $$$     end
+% $$$ end
+% $$$ 
+% $$$ 
+% $$$ for i = it
+% $$$     figure(1)
+% $$$     clf
+% $$$     set(gcf, 'PaperUnits', 'centimeters', 'PaperPosition', [0 0 20 15])
+% $$$ 
+% $$$ % $$$ 
+% $$$ % $$$     plot(x,  (etaCube1(:, 1,i)+zz(1))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     hold on
+% $$$ % $$$     plot(x,  (etaCube2(:, 1,i)+zz(2))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube3(:, 1,i)+zz(3))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube4(:, 1,i)+zz(4))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube5(:, 1,i)+zz(5))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube6(:, 1,i)+zz(6))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube7(:, 1,i)+zz(7))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube8(:, 1,i)+zz(8))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube9(:, 1,i)+zz(9))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube10(:, 1,i)+zz(10))/1, 'k', 'linewidth', 2)    
+% $$$ % $$$     plot(x,  (etaCube11(:, 1,i)+zz(11))/1, 'k', 'linewidth', 2)    
+% $$$ 
+% $$$     % Add topography 
+% $$$     load ~/data/GSL_transect.mat
+% $$$     x_trans = x_trans-160;
+% $$$     x = [x_trans x_trans(end) x_trans(1) x_trans(1)];
+% $$$     y = [H_trans 200 200 H_trans(1)];
+% $$$ 
+% $$$     patch(x, y, [1 1 1]*.7, 'edgecolor', 'none');
+% $$$     xlim([-25 700])
+% $$$     
+% $$$     
+% $$$     % colorbar
+% $$$     %    caxis([-15 15])
+% $$$     %caxis([0 10])
+% $$$     xlim([0 100])
+% $$$     ylim([0 200])
+% $$$ 
+% $$$     
+% $$$     set(gca, 'ydir', 'reverse')
+% $$$ % $$$     zlabel('Depth(m)')
+% $$$ % $$$     xlabel('Dist from SouthShore (km)')
+% $$$ % $$$     ylabel('Dist from Tadoussac (km)')
+% $$$ % $$$ 
+% $$$ % $$$   
+% $$$ % $$$     
+% $$$ % $$$     %pause(.1)
+% $$$ % $$$ 
+% $$$ % $$$     fname  = sprintf('EtaEvol%3.3i', i);
+% $$$ % $$$ 
+% $$$ % $$$     print('-dpng', fname)
+% $$$    
+% $$$    
+% $$$ end
+
+
+% $$$ figure(1)
+% $$$ clf
+% $$$ set(gcf, 'PaperUnits', 'centimeters', 'PaperPosition', [0 0 20 15])
+% Add topography 
+load ~/data/GSL_transect.mat
+x_trans = x_trans-190;
+x = [x_trans x_trans(end) x_trans(1) x_trans(1)];
+y = [H_trans 200 200 H_trans(1)];
+
+% $$$ patch(x, y, [1 1 1]*.7, 'edgecolor', 'none');
+% $$$ %xlim([0 125])
+% $$$ xlim([-30 125])    
+% $$$ ylim([0 150])    
+% $$$ set(gca, 'ydir', 'reverse')
+% $$$ set(gca, 'box', 'on')
+% $$$ set(gca, 'tickdir', 'out')
+% $$$ set(gca, 'ytick', [0:25:150])
+% $$$ set(gca, 'ygrid', 'on')
+% $$$ print('-dpng', '-r300', 'sketch_topo.png')
+
+
+% Build displacements matrix
+eta = load('~/PhD/Nitrates/eta_struct.mat');
+zz = [25:25:125];
+etaMat = nan(lenght(zz), length(x_trans))
+wavelen = 60; %km
+for i = 1:length(zz)
+    [Y, I] = min(abs(zz(i)-eta.z));
+    eta0 = eta.eta(I);
+    etaMat1(i, :) = eta0.*cos(x_trans./wavelen);
+    etaMat2(i, :) = eta0.*sin(x_trans./wavelen);
+end
+    
+
+
+
+figure(2)
+clf
+set(gcf, 'PaperUnits', 'centimeters', 'PaperPosition', [0 0 20 15])
+% *********************** Adjust_space.m ************************ %
+% Fields required by the function adjust_space.m. Please fill every
+% of the following and call "adjust_space" in the script whenever
+% you want. Do not touch four last fields
+ncol = 1; % no. subplot column
+nrow = 2; % no. subplot row
+dx = 0.5 ; % horiz. space between subplots
+dy = 0.1; % vert. space between subplots
+lefs = 0.1; % very left of figure
+rigs = 0.05; % very right of figure
+tops = 0.07; % top of figure
+bots = 0.12; % bottom of figure
+figw = (1-(lefs+rigs+(ncol-1)*dx))/ncol;
+figh = (1-(tops+bots+(nrow-1)*dy))/nrow;
+count_col = 1;
+count_row = 1;
+% *************************************************************** %
+
+XMAX = 125;
+XMIN = -30;
+ZMAX = 150;
+ZMIN = 0;
+
+load transect/transect_info.mat
+xbin = (xbin+10);
+
+ox = xbin;
+oz = zbin(2:end);
+
+% Extrapolate data
+for i = 1:length(xbin)
+    I = find(~isnan(NO3field(:,i)));
+    NO3field(:,i) = interp1(zbin(I), NO3field(I,i), zbin, 'nearest', 'extrap');
+end
+
+NO3field = [NO3field NO3field(:,end)];
+xbin = [xbin -30];
+
+
+load mycm
+colormap(mycm)
+
+subplot(211)
+V=[0:.1:25];
+contourf(xbin, zbin, NO3field, V, 'linestyle', 'none')
+caxis([3 21])
+hold on
+plot([ox(end) ox(end) XMAX-eps  XMAX-eps ox(end)], [ZMAX-eps, oz(1), oz(1), ...
+                    ZMAX-eps, ZMAX-eps], '--k', 'linewidth', 2)
+patch(x, y, [1 1 1]*.7, 'edgecolor', 'none');
+hold off
+%xlim([0 125])
+xlim([-30 XMAX])    
+ylim([0 150])    
+set(gca, 'ydir', 'reverse')
+set(gca, 'box', 'on')
+set(gca, 'tickdir', 'out')
+set(gca, 'ytick', [0:25:150])
+set(gca, 'ygrid', 'on')
+ylabel('Depth (m)')
+set(gca, 'xticklabel', [])
+adjust_space
+
+
+subplot(212)
+contourf(xbin, zbin, NO3field, V, 'linestyle', 'none')
+caxis([3 21])
+hold on
+plot([ox(end) ox(end) XMAX-eps  XMAX-eps ox(end)], [ZMAX-eps, oz(1), oz(1), ...
+                    ZMAX-eps, ZMAX-eps], '--k', 'linewidth', 2)
+patch(x, y, [1 1 1]*.7, 'edgecolor', 'none');
+hold off
+%xlim([0 125])
+xlim([-30 XMAX])    
+ylim([0 150])    
+set(gca, 'ydir', 'reverse')
+set(gca, 'box', 'on')
+set(gca, 'tickdir', 'out')
+set(gca, 'ytick', [0:25:150])
+set(gca, 'ygrid', 'on')
+xlabel('Distance from sill (km)')
+text(-29, 137.5, 'Head of the', 'verticalAlignment', 'bottom', ...
+     'horizontalAlignment', 'left')
+text(-29, 137.5, 'Laurentian Channel', 'verticalAlignment', 'top', ...
+     'horizontalAlignment', 'left')
+
+adjust_space
+print('-dpng', '-r300', 'sketch_topo2.png')
+set(gcf, 'renderer', 'painters')
+print('-depsc2', 'sketch_topo2.eps')

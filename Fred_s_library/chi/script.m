@@ -1,0 +1,1 @@
+%set path, change filename, then rundisp('Tabarnak!')load 'X041DATA.TXT';DATA=X041DATA;k=DATA(:,2);graphing=1;S_obs=DATA(:,3);S_scamp=DATA(:,4);keyboard[likelihoodratio,likelihood,fitmaximum,f11] = fit_kb(k,S_obs,graphing);%Now plot c11 fit against scamp fit.figure(2)loglog(k,f11,k,S_obs,k(1:31),S_scamp(1:31))

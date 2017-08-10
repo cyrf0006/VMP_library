@@ -1,0 +1,43 @@
+function odf2mat_buoy(infile, outfile)
+
+  
+%!rm -f databuoy datebuoy
+% spaces are important!    
+system(['sh ~/shellscripts/buoy_ODF2ASCII.sh ' infile ' databuoy datebuoy']);
+
+adcp_raw = load('databuoy'); % z, u, u_f, v, v_f, w, w_f, error
+
+
+% this part only work if CTD  filename convention is respected
+fid = fopen('datebuoy');
+C = textscan(fid, '%s', 'delimiter', '\n');
+date_str = char(C{1}); 
+
+!rm databuoy datebuoy
+
+% isolate depth vector
+count = 1;
+while adcp_raw(count+1, 1)-adcp_raw(count, 1)>0
+    z(count) = adcp_raw(count, 1);
+    count = count+1;
+end
+z(count) = adcp_raw(count, 1);
+z = round(z)';
+
+vert_vel = adcp_raw(:,6);
+vert_vel_error = adcp_raw(:,7);
+I = find(vert_vel_error==3);
+vert_vel(I)=NaN;
+
+vert_vel = reshape(vert_vel, length(z), length(vert_vel)/length(z));
+
+
+% here we should make a struct... 
+% But for now it is fine...
+
+
+dlmwrite(outfile, vert_vel, 'delimiter',' ','precision',6);
+
+
+
+

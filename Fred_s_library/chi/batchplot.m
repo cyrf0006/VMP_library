@@ -1,0 +1,1 @@
+[n,m]=size(k);imax=10;y=ones(n,imax);for i=1:imax	kB=20*i;	y2=Batch_spec( kB,k,S_obs);	y(:,i)=y2';endfigure(1)loglog(k,y)axis([ 1 1000 1E-8 .01])hold onloglog([20:20:imax*20],max(y)./20,'+')hold offfigure(2)nois=1E-7;y=y+ nois*ones(size(y));loglog(k,y)axis([ 1 1000 1E-8 .01])hold onloglog([20:20:imax*20],max(y)./20,'+')loglog(k,S_obs)hold off

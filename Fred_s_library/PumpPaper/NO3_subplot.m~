@@ -1,0 +1,343 @@
+clear
+
+% Few infos on plots
+zbin = 5;
+zMax = 300;
+ zVec = [zbin/2:zbin:zMax]';
+
+% datasets
+VMP_riki = load('~/WINDEX/data_processing/boot_VMP_riki.mat');
+%VMP_hlc = load('~/WINDEX/data_processing/Mission_tadoussac_2009/boot_VMP_Stat25.mat');
+VMP_hlc = load('~/PhD/Nitrates/boot_VMP_Stat25.mat');
+Stat25 = load(['/home/cyrf0006/PhD/Nitrates/Stat25_20km/' ...
+               'smooth_scatter_stat25.mat']);
+Stat23 = load(['/home/cyrf0006/PhD/Nitrates/riki/' ...
+               'smooth_scatter_stat23.mat']);
+
+% bin and rename variables and compute fluxes
+epsRiki = nan(size(zVec)); epsRiki1 = nan(size(zVec)); epsRiki2 = nan(size(zVec));
+epsHlc = nan(size(zVec)); epsHlc1 = nan(size(zVec)); epsHlc2 = nan(size(zVec));
+KRiki = nan(size(zVec)); KRiki1 = nan(size(zVec)); KRiki2 = nan(size(zVec));
+KHlc = nan(size(zVec)); KHlc1 = nan(size(zVec)); KHlc2 = nan(size(zVec));
+N2Riki = nan(size(zVec)); N2Riki1 = nan(size(zVec)); N2Riki2 = nan(size(zVec));
+N2Hlc = nan(size(zVec)); N2Hlc1 = nan(size(zVec)); N2Hlc2 = nan(size(zVec));
+FHlc = nan(size(zVec)); FHlc1 = nan(size(zVec)); FHlc2 = nan(size(zVec));
+FRiki = nan(size(zVec)); FRiki1 = nan(size(zVec)); FRiki2 = nan(size(zVec));
+
+NO3Riki = nan(size(zVec)); NO3Riki1 = nan(size(zVec)); NO3Riki2 = nan(size(zVec));
+NO3Hlc = nan(size(zVec)); NO3Hlc1 = nan(size(zVec)); NO3Hlc2 = nan(size(zVec));
+
+
+
+for i = 1:length(zVec)
+    I = find(VMP_riki.P_bin>=zVec(i)-zbin/2 & VMP_riki.P_bin<zVec(i)+zbin/2);
+    epsRiki(i) = nanmean(VMP_riki.eps_ave(I));
+    epsRiki1(i) = nanmean(VMP_riki.eps_2p5(I));
+    epsRiki2(i) = nanmean(VMP_riki.eps_97p5(I));
+    KRiki(i) = nanmean(VMP_riki.K_ave(I));
+    KRiki1(i) = nanmean(VMP_riki.K_2p5(I));
+    KRiki2(i) = nanmean(VMP_riki.K_97p5(I));   
+    N2Riki(i) = nanmean(VMP_riki.N2_ave(I));
+    N2Riki1(i) = nanmean(VMP_riki.N2_2p5(I));
+    N2Riki2(i) = nanmean(VMP_riki.N2_97p5(I));  
+    FRiki(i) = nanmean(VMP_riki.F_ave(I));
+    FRiki1(i) = nanmean(VMP_riki.F_2p5(I));
+    FRiki2(i) = nanmean(VMP_riki.F_97p5(I)); 
+    
+    I = find(Stat23.Pfit>=zVec(i)-zbin/2 & Stat23.Pfit<zVec(i)+zbin/2);
+    NO3Riki(i) = nanmean(Stat23.Sfit_ave(I));
+    NO3Riki1(i) = nanmean(Stat23.Sfit2p5(I)); 
+    NO3Riki2(i) = nanmean(Stat23.Sfit97p5(I));
+    
+    I = find(VMP_hlc.P_bin>=zVec(i)-zbin/2 & VMP_hlc.P_bin<zVec(i)+zbin/2);
+    epsHlc(i) = nanmean(VMP_hlc.eps_ave(I));
+    epsHlc1(i) = nanmean(VMP_hlc.eps_2p5(I));
+    epsHlc2(i) = nanmean(VMP_hlc.eps_97p5(I));
+    KHlc(i) = nanmean(VMP_hlc.K_ave(I));
+    KHlc1(i) = nanmean(VMP_hlc.K_2p5(I));
+    KHlc2(i) = nanmean(VMP_hlc.K_97p5(I));   
+    N2Hlc(i) = nanmean(VMP_hlc.N2_ave(I));
+    N2Hlc1(i) = nanmean(VMP_hlc.N2_2p5(I));
+    N2Hlc2(i) = nanmean(VMP_hlc.N2_97p5(I));  
+    FHlc(i) = nanmean(VMP_hlc.F_ave(I));
+    FHlc1(i) = nanmean(VMP_hlc.F_2p5(I));
+    FHlc2(i) = nanmean(VMP_hlc.F_97p5(I)); 
+    
+    I = find(Stat25.Pfit>=zVec(i)-zbin/2 & Stat25.Pfit<zVec(i)+zbin/2);
+    NO3Hlc(i) = nanmean(Stat25.Sfit_ave(I));
+    NO3Hlc1(i) = nanmean(Stat25.Sfit2p5(I)); 
+    NO3Hlc2(i) = nanmean(Stat25.Sfit97p5(I));
+end
+
+dNO3dzHlc = gradient(NO3Hlc, zVec);
+dNO3dzHlc1 = gradient(NO3Hlc1, zVec);
+dNO3dzHlc2 = gradient(NO3Hlc2, zVec);
+dNO3dzRiki = gradient(NO3Riki, zVec);
+dNO3dzRiki1 = gradient(NO3Riki1, zVec);
+dNO3dzRiki2 = gradient(NO3Riki2, zVec);
+
+FNO3Riki = KRiki.*dNO3dzRiki*86400;
+FNO3Riki1 = KRiki1.*dNO3dzRiki1*86400;
+FNO3Riki2 = KRiki2.*dNO3dzRiki2*86400;
+FNO3Hlc = KHlc.*dNO3dzHlc*86400;
+FNO3Hlc1 = KHlc1.*dNO3dzHlc1*86400;
+FNO3Hlc2 = KHlc2.*dNO3dzHlc2*86400;
+
+FHlc = FHlc*86400; % measured from S
+FHlc1 = FHlc1*86400;
+FHlc2 = FHlc2*86400;
+FRiki = FRiki*86400;
+FRiki1 = FRiki1*86400;
+FRiki2 = FRiki2*86400;
+
+figure(1)    
+clf
+set(gcf,'PaperUnits','centimeters','PaperPosition',[1 1 18 20])
+% *********************** Adjust_space.m ************************ %
+% Fields required by the function adjust_space.m. Please fill every
+% of the following and call "adjust_space" in the script whenever
+% you want. Do not touch four last fields
+ncol = 4; % no. subplot column
+nrow = 2; % no. subplot row
+dx = 0.03 ; % horiz. space between subplots
+dy = 0.04; % vert. space between subplots
+lefs = 0.1; % very left of figure
+rigs = 0.05; % very right of figure
+tops = 0.02; % top of figure
+bots = 0.12; % bottom of figure
+figw = (1-(lefs+rigs+(ncol-1)*dx))/ncol;
+figh = (1-(tops+bots+(nrow-1)*dy))/nrow;
+count_col = 1;
+count_row = 1;
+% *************************************************************** %
+
+% --  S1 -- %
+s1 = subplot(241);
+x1 = N2Riki1;
+x2 = N2Riki2;
+I = find(~isnan(x1)==1 & ~isnan(x2)==1);
+semilogx(N2Riki(I), zVec(I), 'k')
+hold on
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+%text(4e-4, 172, 'Stat. 23')
+text(4e-4, 290, 'Stat. 23')
+hold off
+ylabel('Depth (m)')
+ylim([0 zMax])
+xlim([4e-5 3e-3])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xtick', [1e-4 1e-3])
+set(gca, 'xticklabel', [])
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+%et(s1, ')
+adjust_space
+
+% -- S2 -- %
+s2 = subplot(252);
+x1 = epsRiki1;
+x2 = epsRiki2;
+I = find(~isnan(x1)==1 & ~isnan(x2)==1);
+semilogx(epsRiki(I), zVec(I), 'k')
+hold on
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+hold off
+ylim([0 zMax])
+xlim([1e-9 1e-3])
+set(gca, 'xtick', [1e-8 1e-7 1e-6 1e-5 1e-4])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xticklabel', [])
+set(gca, 'yticklabel', [])
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+adjust_space
+
+% -- S3 -- %
+s3 = subplot(243);
+x1 = KRiki1;
+x2 = KRiki2;
+I = find(~isnan(x1)==1 & ~isnan(x2)==1);
+semilogx(KRiki(I), zVec(I), 'k')
+hold on
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+hold off
+ylim([0 zMax])
+xlim([5e-6 1e-1])
+set(gca, 'xtick', [1e-5 1e-4 1e-3 1e-2])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xticklabel', [])
+set(gca, 'yticklabel', [])
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+adjust_space
+
+% -- S4 -- %
+s4 = subplot(244);
+
+% from S:
+x1 = FRiki1;
+x2 = FRiki2;
+I = find(x1>0 & x2>0 & zVec<=300);
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); ...
+                    zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+% $$$ hold on
+% $$$ % from ODMS
+% $$$ x1 = FNO3Riki1;
+% $$$ x2 = FNO3Riki2;
+% $$$ I = find(x1>0 & x2>0);
+% $$$ patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+hold off
+
+set(gca, 'xscale', 'log')
+ylim([0 zMax])
+xlim([1e-3 5e2])
+set(gca, 'xtick', [1e-4 1e-2 1e0 1e2])
+%set(gca, 'xminortick', [])
+set(gca, 'xticklabel', [])
+set(gca, 'yticklabel', [])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xgrid', 'on')
+set(gca, 'box', 'on')
+set(gca, 'xminorgrid', 'off')
+% $$$ set(gca, 'ygrid', 'on')
+% $$$ set(gca, 'yminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+adjust_space
+
+
+% --  S5-- %
+s5 = subplot(245);
+x1 = N2Hlc1;
+x2 = N2Hlc2;
+I = find(~isnan(x1)==1 & ~isnan(x2)==1);
+semilogx(N2Hlc(I), zVec(I), 'k')
+hold on
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+%text(4e-4, 172, 'Stat. 25')
+text(4e-4, 290, 'Stat. 25')
+hold off
+ylim([0 zMax])
+xlim([4e-5 3e-3])
+xlabel('N^2 (s^{-2})')
+set(gca, 'xtick', [1e-4 1e-3])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+adjust_space
+
+
+% -- S6 -- %
+s6 = subplot(246);
+x1 = epsHlc1;
+x2 = epsHlc2;
+I = find(~isnan(x1)==1 & ~isnan(x2)==1);
+semilogx(epsHlc(I), zVec(I), 'k')
+hold on
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+hold off
+ylim([0 zMax])
+xlim([1e-9 1e-3])
+xlabel('\epsilon (W kg^{-1})')
+set(gca, 'xtick', [1e-8 1e-7 1e-6 1e-5 1e-4])
+set(gca, 'yticklabel', [])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+adjust_space
+
+% -- S7 -- %
+s7 = subplot(247);
+x1 = KHlc1;
+x2 = KHlc2;
+I = find(~isnan(x1)==1 & ~isnan(x2)==1);
+semilogx(KHlc(I), zVec(I), 'k')
+hold on
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+hold off
+ylim([0 zMax])
+xlim([5e-6 1e-1])
+xlabel('K (m^{2} s^{-1})')
+set(gca, 'xtick', [1e-5 1e-4 1e-3 1e-2])
+set(gca, 'yticklabel', [])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+adjust_space
+
+
+% -- S8 -- %
+s8 = subplot(2,4,8);
+semilogx(FHlc(10:11), zVec(10:11), 'k')
+hold on
+% from S:
+x1 = FHlc1;
+x2 = FHlc2;
+I = find(x1>0 & x2>0);
+
+patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); ...
+                    zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+% $$$ % from ODMS
+% $$$ x1 = FNO3Hlc1;
+% $$$ x2 = FNO3Hlc2;
+% $$$ I = find(x1>0 & x2>0);
+% $$$ patch([x1(I); flipud(x2(I)); x1(I(1))], [zVec(I); flipud(zVec(I)); ...
+% $$$                     zVec(I(1))], [1 1 1]*.6, 'edgecolor', 'none');
+hold off
+ylim([0 zMax])
+xlim([1e-3 5e2])
+xlabel('F_{NO_3} (mmol m^{-2} d^{-1})')
+set(gca, 'xtick', [1e-4 1e-2 1e0 1e2])
+set(gca, 'yticklabel', [])
+set(gca, 'ydir', 'reverse')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+adjust_space
+
+
+print(gcf, '-dpng', 'NO3_subplot.png')
+set(gcf, 'renderer', 'painters')
+print(gcf, '-depsc2', 'NO3_subplot.eps')
+
+keyboard
+
+%I = find(zVec>=47.5 & zVec<=52.5);
+I = find(zVec>=25 & zVec<=50);
+disp('25-50m')
+[nanmean(FNO3Riki(I)) nanmean(FNO3Riki1(I)) nanmean(FNO3Riki2(I))]
+[nanmean(FRiki(I))  nanmean(FRiki1(I))  nanmean(FRiki2(I))]
+[nanmean(FNO3Hlc(I))  nanmean(FNO3Hlc1(I))  nanmean(FNO3Hlc2(I))]
+[nanmean(FHlc(I))  nanmean(FHlc1(I))  nanmean(FHlc2(I))]
+
+
+disp('100-150m')
+I = find(zVec>=100 & zVec<=150);
+[nanmean(FNO3Riki(I)) nanmean(FNO3Riki1(I)) nanmean(FNO3Riki2(I))]
+[nanmean(FRiki(I))  nanmean(FRiki1(I))  nanmean(FRiki2(I))]
+[nanmean(FNO3Hlc(I))  nanmean(FNO3Hlc1(I))  nanmean(FNO3Hlc2(I))]
+[nanmean(FHlc(I))  nanmean(FHlc1(I))  nanmean(FHlc2(I))]
+
+% $$$ 25-50m
+% $$$ ans =
+% $$$     0.1098    0.0409    0.2278
+% $$$ ans =
+% $$$     0.1265    0.0762    0.1906
+% $$$ ans =
+% $$$    70.9767   24.5276  143.7002
+% $$$ ans =
+% $$$    71.5030    0.1804  182.2195
+% $$$ 100-150m
+% $$$ ans =
+% $$$     0.1998    0.1561    0.2644
+% $$$ ans =
+% $$$     0.1140    0.0848    0.1588
+% $$$ ans =
+% $$$     1.2818    0.3942    2.2577
+% $$$ ans =
+% $$$     1.5641    0.3446    3.6289

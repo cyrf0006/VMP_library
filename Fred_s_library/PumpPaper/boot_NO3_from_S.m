@@ -1,0 +1,515 @@
+function boot_NO3_from_S(epsFileNames, pFileNames, zbin, varargin)
+
+% function boot_VMP(file_names, zbin, varargin)
+%
+% where: - no_profile = number of profile to consider
+%        - zbin = bins for the final plot
+%        - varargin = name of the file containing K profile
+%
+% usage ex: boot_NO3_from_S('epsProfiles.list', 'pProfiles.list', 1);  (Nutrient Pumping study)
+%
+%       or in ~/WINDEX/data_processing:
+%             
+%  boot_NO3_from_S('profile_list/SymLinkRikiEpsProfiles.list', 'profile_list/SymLinkRikiProfiles.list',1); 
+%
+%
+% NEW USAGE EX (access with symbolic links in ~/PhD/WINDEX):
+%  from anywhere, do:
+%   boot_NO3_from_S('~/PhD/WINDEX/MissionTadoussac/epsProfiles.list', '~/PhD/WINDEX/MissionTadoussac/pProfiles.list', 1)
+%
+% OR
+%
+% boot_NO3_from_S('~/PhD/WINDEX/profile_list/SymLinkRikiEpsProfiles.list', '~/PhD/WINDEX/profile_list/SymLinkRikiProfiles.list', 1)
+
+%%% WATCH OUT! no_remove must be set to 0 for HLC profiles %%%%%
+%  
+
+
+% author: F. Cyr - April 2014
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% some constants
+GAMMA = 0.2; %mixing efficiency
+
+% depth range for extracting the average
+zmin = 0; % top of the fisrt bin
+zmax = 350;
+nboot = 1000;    
+P_bin = [zmin+zbin/2:zbin:zmax-zbin/2]';
+
+
+% load list of files
+fid = fopen(epsFileNames);
+C = textscan(fid, '%s', 'delimiter', '\n');
+epsfiles = char(C{1});
+
+fid = fopen(pFileNames);
+C = textscan(fid, '%s', 'delimiter', '\n');
+pfiles = char(C{1});
+
+
+siz = size(epsfiles);
+no_profile = siz(1); %number of eps_files 
+
+% raw matrix to fill
+mat_eps_bin = nan(length(P_bin), no_profile);
+mat_K_bin = mat_eps_bin;
+mat_N2_bin = mat_eps_bin;
+mat_NO3_bin = mat_eps_bin;
+mat_SA_bin = mat_eps_bin;
+mat_CT_bin = mat_eps_bin;
+mat_RHO_bin = mat_eps_bin;
+timeVec = nan(1, no_profile);
+
+
+N2_count = 0;
+N2_min = -6;
+
+%%%%%%%%%%%%%%%%%%%%
+% loop on profiles %
+%%%%%%%%%%%%%%%%%%%%
+
+for profile = 1:no_profile
+   
+    % load turbulence
+    disp(sprintf('profile %d / %d', profile, no_profile));
+    fname = epsfiles(profile, :);
+    I = find(fname==' ');   
+    fname(I) = [];
+    load(fname);
+    
+    % load fine scale
+    fname = pfiles(profile, :);
+    I = find(fname==' ');   
+    fname(I) = [];
+    load(fname);
+      
+    timeVec(profile) = mtime(1); 
+    % ---- Process SA and NO3
+    if ~exist('SA')
+        [SA, in_ocean] = gsw_SA_from_SP(SBS,P,-68.79,48.61);
+        CT = gsw_CT_from_t(SA,SBT,P);
+    end
+% $$$ 
+% $$$     rho = gsw_rho(SA,CT,P);        
+% $$$     [rho, I] = sort(rho);
+% $$$     SA = SA(I);
+% $$$     CT = CT(I);
+    %NO3 = 6.7*SA - 207; %60-250m
+    %NO3 = 5.7*SA - 173; %50-300m
+    %NO3 = 7.3*SA - 225; %32-34.3 SA (with winter)
+    %NO3 = 7.3*SA - 227; %32-34.3 SA (no winter)
+    %% !!!WARNING!!!  ->  this is not used 
+    % (was earlier version, see after binning...)
+    %I = find(SA<32 | SA>34.3);
+    %NO3(I) = NaN;
+    
+    % ---- Process EPSILON, N2, K ---- %
+    maxp(profile) = max(p_eps1(end), p_eps2(end));
+    
+    % ---- average of 2 epsilon profiles ---- %
+    if length(p_eps1) == length(p_eps2) % no problem, easy
+        p_k = p_eps1;
+        p_N = p_eps1;
+        EPS2=nan(length(p_eps1),2);
+        EPS2(:,1) = eps1;
+        EPS2(:,2) = eps2;
+    elseif min(p_eps1)<min(p_eps2) % p1 drive, nomatter size of p2!
+        p_k = p_eps1;        
+        p_N = p_eps1;
+        EPS2=nan(length(p_eps1),2);
+        EPS2(:,1) = eps1;
+        ind = find(p_eps2 == p_eps1(1));
+        EPS2(ind:length(p_eps2),2) = eps2;
+    else % p2 drive, nomatter size of p1!
+        p_k = p_eps2;
+        p_N = p_eps1;
+        EPS2=nan(length(p_eps2),2);
+        EPS2(:,2) = eps2;
+        ind = find(p_eps1 == p_eps2(1));
+        EPS2(ind:length(p_eps1),1) = eps1;
+    end
+    
+    % "selection" average
+    I = find(EPS2(:,1)>10*EPS2(:,2));
+    EPS2(I,1)=NaN;
+    I = find(EPS2(:,2)>10*EPS2(:,1));
+    EPS2(I,2)=NaN;
+   
+    EPS = nanmean(EPS2,2); %MEAN EPSILON
+                        
+    
+    % if only nans
+    if sum(~isnan(EPS))==0;
+        clear SA CT
+        continue
+    end
+    
+    % Homestyle despike
+    [Y, No] = Dspike(EPS, 5, 8);
+
+    % uses home despike
+    EPS = Y;
+    
+    % ---- mean N2 ---- %
+    N2=nan(length(p_k),1);
+    if length(p_N)==length(p_k);
+        N2(:) = N.^2;
+    else
+        N2(ind:length(p_N))=N.^2;
+    end
+    
+    % ---- compute K_rho ---- %
+    K_rho = GAMMA.*EPS./(N2);
+
+   
+    % ---- Remove unrealistic diffusivity ---- %
+    I = find(log10(N2)<N2_min);
+    if ~isempty(I)==1
+        K_rho_ignored(N2_count+1:N2_count+length(I))=K_rho(I)';
+        K_rho(I)=NaN;
+        N2_count = N2_count+length(I);
+    end
+    
+  
+    % ---------- bin profile -------------- %
+    for i = 1:length(P_bin)
+        I = find(p_k >= P_bin(i)-zbin/2 & p_k <= P_bin(i)+zbin/2);
+        mat_eps_bin(i, profile) = nanmean(EPS(I));
+        mat_K_bin(i, profile) = nanmean(K_rho(I));
+        mat_N2_bin(i, profile) = nanmean(N2(I));
+        I = find(P >= P_bin(i)-zbin/2 & P <= P_bin(i)+zbin/2);
+        %mat_NO3_bin(i, profile) = nanmean(NO3(I));
+        mat_SA_bin(i, profile) = nanmean(SA(I));
+        %mat_CT_bin(i, profile) = nanmean(CT(I));
+        %  mat_RHO_bin(i, profile) = nanmean(rho(I));
+    end
+    % ------------------------------------ %
+    
+    % ------ remove last bins ------------- %
+    I = find(~isnan(mat_eps_bin(:,profile))==1);
+   
+    no_remove = 0;
+    if length(I)<no_remove
+        mat_eps_bin(:, profile)=NaN;
+        mat_K_bin(:, profile)=NaN;
+        mat_N2_bin(:, profile)=NaN;
+        mat_NO3_bin(:, profile)=NaN;
+    elseif no_remove ~= 0
+        mat_eps_bin(I(end-no_remove+1:end), profile)=NaN;
+        mat_K_bin(I(end-no_remove+1:end), profile)=NaN;
+        mat_N2_bin(I(end-no_remove+1:end), profile)=NaN;
+        mat_NO3_bin(I(end-no_remove+1:end), profile)=NaN;
+    end
+    % ------------------------------------ %
+    clear SA CT
+end 
+
+
+
+%% HERE THE REAL CALCULATION 
+% NO3 profile calculation after binning (comment to by-pass)
+% $$$ keyboard
+% $$$ % calculate density
+% $$$ mat_rho_bin = gsw_rho(mat_SA_bin,mat_CT_bin,P_bin);        
+% $$$ %[Y, I] = sort(mat_rho_bin, 1);
+% $$$ %mat_SA_bin2 = nan(size(mat_SA_bin));
+% $$$ mat_SA_bin = sort(mat_SA_bin,1);
+% $$$ CT = CT(I);
+% $$$ for i = 1:size(mat_rho_bin,2)
+% $$$     [Y,I] = sort(mat_rho_bin(:,1));
+% $$$     mat_SA_bin2(:,i) = mat_SA_bin(I,i);
+% $$$ end
+% $$$ mat_SA_bin = mat_SA_bin2;
+
+% sort salinity
+mat_SA_bin = sort(mat_SA_bin,1);
+
+
+mat_NO3_bin = 7.3.*mat_SA_bin - 227; %32-34.3 SA (no winter)
+I = find(mat_SA_bin<32 | mat_SA_bin>34.3);
+mat_NO3_bin(I) = NaN;
+
+% ---- NO3 fluxes calculation ---- %
+[dNO3dx, dNO3dz] = gradient(mat_NO3_bin);
+dNO3dz = dNO3dz./zbin;
+%dNO3dz = diff(mat_NO3_bin, 1, 1)./zbin;
+% $$$ Pdiff = P_bin(1:end-1)+zbin/2;
+% $$$ FNO3 = nan(size(mat_K_bin));
+% $$$ 
+% $$$ for i = 1:size(dNO3dz,2)
+% $$$     I = find(~isnan(dNO3dz(:,i))==1);
+% $$$     if length(I)>1
+% $$$         dNO3itp = interp1(Pdiff(I), dNO3dz(I,i), P_bin);
+% $$$         %    dNO3itp = interp1(Pdiff, dNO3dz(:,i), P_bin);
+% $$$         FNO3(:,i) = mat_K_bin(:,i).*dNO3itp;
+% $$$     end
+% $$$ end
+
+FNO3 = mat_K_bin.*dNO3dz;
+
+
+
+%% Just check tidal modulation
+time2 = time2hightide(timeVec, ['/home/cyrf0006/WINDEX/' ...
+                    'data_processing/BMix_study/tide_2009-2012.dat']);
+% $$$ Iebb = find(time2>0);
+% $$$ fakeEps = mat_eps_bin(1:50,Iebb);
+% $$$ fakeFlux = FNO3(25:50,Iebb);
+% $$$ nanmean(fakeEps(:));
+% $$$ nanmean(fakeFlux(:));
+% $$$ Iflood = find(time2<0);
+% $$$ fakeEps = mat_eps_bin(1:50,Iflood);
+% $$$ fakeFlux = FNO3(25:50,Iflood);
+% $$$ nanmean(fakeEps(:));
+% $$$ nanmean(fakeFlux(:));
+
+% uncomment this and run NO3_subplot for averages
+%FNO3(:,Iflood) = NaN;
+%FNO3(:,Iebb) = NaN;
+% $$$ FNO3(:,IHT) = NaN;
+
+%% Artificially equalizing the sampling (x8 low tide)
+ILT = find(time2>3 | time2<-3);
+mat_eps_bin = [mat_eps_bin mat_eps_bin(:,ILT) mat_eps_bin(:,ILT) ...
+               mat_eps_bin(:,ILT) mat_eps_bin(:,ILT) mat_eps_bin(:,ILT) ...
+               mat_eps_bin(:,ILT) mat_eps_bin(:,ILT) mat_eps_bin(:,ILT)];
+mat_K_bin = [mat_K_bin mat_K_bin(:,ILT) mat_K_bin(:,ILT) ...
+               mat_K_bin(:,ILT) mat_K_bin(:,ILT) mat_K_bin(:,ILT) ...
+               mat_K_bin(:,ILT) mat_K_bin(:,ILT) mat_K_bin(:,ILT)];
+mat_N2_bin = [mat_N2_bin mat_N2_bin(:,ILT) mat_N2_bin(:,ILT) ...
+               mat_N2_bin(:,ILT) mat_N2_bin(:,ILT) mat_N2_bin(:,ILT) ...
+               mat_N2_bin(:,ILT) mat_N2_bin(:,ILT) mat_N2_bin(:,ILT)];
+mat_NO3_bin = [mat_NO3_bin mat_NO3_bin(:,ILT) mat_NO3_bin(:,ILT) ...
+               mat_NO3_bin(:,ILT) mat_NO3_bin(:,ILT) mat_NO3_bin(:,ILT) ...
+               mat_NO3_bin(:,ILT) mat_NO3_bin(:,ILT) mat_NO3_bin(:,ILT)];
+FNO3 = [FNO3 FNO3(:,ILT) FNO3(:,ILT) ...
+               FNO3(:,ILT) FNO3(:,ILT) FNO3(:,ILT) ...
+               FNO3(:,ILT) FNO3(:,ILT) FNO3(:,ILT)];
+dNO3dz = [dNO3dz dNO3dz(:,ILT) dNO3dz(:,ILT) ...
+               dNO3dz(:,ILT) dNO3dz(:,ILT) dNO3dz(:,ILT) ...
+               dNO3dz(:,ILT) dNO3dz(:,ILT) dNO3dz(:,ILT)];
+
+
+%%%%%%%%%%%%%%%%%%%%
+% --- bootstrap --- %
+%%%%%%%%%%%%%%%%%%%%
+% just rename
+mat_eps  = mat_eps_bin;
+mat_K = mat_K_bin;
+mat_N2 = mat_N2_bin;
+mat_NO3 = mat_NO3_bin;
+mat_FNO3 = FNO3;
+mat_dNO3 = dNO3dz;
+
+
+% -- bootstrap -- %
+disp('bootstrap...')
+N = size(mat_eps,2);
+
+% create random sampling
+for b = 1:nboot
+    r = rand(N,1);
+    r = ceil(r*N/1);
+    
+% $$$     % normal distrib:
+% $$$     eps_boot_b(:,b) = nanmean(mat_eps(:,r),2);
+% $$$     K_boot_b(:,b) = nanmean(mat_K(:,r),2);
+% $$$     N2_boot_b(:,b) = nanmean(mat_N2(:,r),2);
+% $$$     NO3_boot_b(:,b) = nanmean(mat_NO3(:,r),2);
+% $$$     F_boot_b(:,b) = nanmean(mat_FNO3(:,r),2);
+    
+    % Log-norm. distrib:
+    m = nanmean(log(mat_eps(:,r)), 2);
+    s2 = nanvar(log(mat_eps(:,r)), 2);
+    eps_boot_b(:,b) = exp(m+s2/2);
+    
+    m = nanmean(log(mat_K(:,r)), 2);
+    s2 = nanvar(log(mat_K(:,r)), 2);
+    K_boot_b(:,b) = exp(m+s2/2);
+    
+    m = nanmean(log(mat_N2(:,r)), 2);
+    s2 = nanvar(log(mat_N2(:,r)), 2);
+    N2_boot_b(:,b) = exp(m+s2/2);
+    
+    m = nanmean(log(mat_NO3(:,r)), 2);
+    s2 = nanvar(log(mat_NO3(:,r)), 2);
+    NO3_boot_b(:,b) = exp(m+s2/2);
+    
+    m = nanmean(log(mat_FNO3(:,r)), 2);
+    s2 = nanvar(log(mat_FNO3(:,r)), 2);
+    F_boot_b(:,b) = exp(m+s2/2);  
+    
+    m = nanmean(log(mat_dNO3(:,r)), 2);
+    s2 = nanvar(log(mat_dNO3(:,r)), 2);
+    dNO3_boot_b(:,b) = exp(m+s2/2);      
+    
+end
+
+% mean of random sampling
+eps_boot_dot = nanmean(eps_boot_b,2);
+K_boot_dot = nanmean(K_boot_b,2);
+N2_boot_dot = nanmean(N2_boot_b,2);
+NO3_boot_dot = nanmean(NO3_boot_b,2);
+F_boot_dot = nanmean(F_boot_b,2);
+dNO3_boot_dot = nanmean(dNO3_boot_b,2);
+
+% compute error (EFRON & GONG 83)
+eps_error = sqrt(sum((diff([eps_boot_b eps_boot_dot],1, 2)).^2, 2)./(nboot-1));
+K_error = sqrt(sum((diff([K_boot_b K_boot_dot],1, 2)).^2, 2)./(nboot-1));
+N2_error = sqrt(sum((diff([N2_boot_b N2_boot_dot],1, 2)).^2, 2)./(nboot-1));
+NO3_error = sqrt(sum((diff([NO3_boot_b NO3_boot_dot],1, 2)).^2, 2)./(nboot-1));
+F_error = sqrt(sum((diff([F_boot_b F_boot_dot],1, 2)).^2, 2)./(nboot-1));
+
+% Compute 95% confidence interval
+eps_sort = sort(eps_boot_b, 2);
+K_sort  = sort(K_boot_b, 2);
+N2_sort  = sort(N2_boot_b, 2);
+NO3_sort  = sort(NO3_boot_b, 2);
+F_sort  = sort(F_boot_b, 2);
+dNO3_sort  = sort(dNO3_boot_b, 2);
+
+CI_2p5 = round(2.5/100*nboot);
+CI_97p5 = round(97.5/100*nboot);
+
+eps_2p5 = eps_sort(:,CI_2p5);
+K_2p5 = K_sort(:,CI_2p5);
+N2_2p5 = N2_sort(:,CI_2p5);
+NO3_2p5 = NO3_sort(:,CI_2p5);
+F_2p5 = F_sort(:,CI_2p5);
+eps_97p5 = eps_sort(:,CI_97p5);
+K_97p5 = K_sort(:,CI_97p5);
+N2_97p5 = N2_sort(:,CI_97p5);
+NO3_97p5 = NO3_sort(:,CI_97p5);
+F_97p5 = F_sort(:,CI_97p5);
+
+dNO3_2p5 = dNO3_sort(:,CI_2p5);
+dNO3_97p5 = dNO3_sort(:,CI_97p5);
+
+
+% $$$ % mean profile
+% $$$ eps_ave = nanmean(mat_eps,2);
+% $$$ K_ave = nanmean(mat_K,2);
+% $$$ N2_ave = nanmean(mat_N2,2);
+eps_ave = eps_boot_dot;
+K_ave = K_boot_dot;
+N2_ave = N2_boot_dot;
+NO3_ave = NO3_boot_dot;
+F_ave = F_boot_dot;
+
+%%%%%%%%%%%%%%%%%%%%
+% --- plotting --- %
+%%%%%%%%%%%%%%%%%%%%
+% ---------- binned ----------- %
+figure(2)    
+clf
+set(gcf,'PaperUnits','centimeters','PaperPosition',[10 10 16 10])
+
+subplot(1, 4, 1);
+semilogx(eps_ave, P_bin, 'k', 'linewidth', 0.25);
+
+% shade area
+hold on
+x2 = eps_2p5;
+x1 = eps_97p5;
+I = find(~isnan(x1)==1 & ~isnan(x1)==1);
+patch([x1(I); flipud(x2(I)); x1(I(1))], [P_bin(I); flipud(P_bin(I)); P_bin(I(1))], [.8 .8 .8], 'edgecolor', 'none');
+semilogx(eps_ave, P_bin, 'k', 'linewidth', 0.25);
+hold off
+set(gca, 'ydir', 'reverse')
+axis([1e-9 5e-4 0 300])
+set(gca, 'xtick', [1e-9 1e-8 1e-7 1e-6 1e-5 1e-4])
+ylabel('P (dbar)', 'FontSize', 9)
+xlabel('\epsilon (W kg^{-1})', 'FontSize', 9)
+set(gca, 'FontSize', 9)
+set(gca, 'xminortick', 'off')
+set(gca, 'yminortick', 'on')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+
+
+subplot(1, 4, 2)
+semilogx(N2_ave, P_bin, 'k', 'linewidth', 0.25)
+hold on
+x2 = N2_2p5;
+x1 = N2_97p5;
+I = find(~isnan(x1)==1 & ~isnan(x1)==1);
+patch([x1(I); flipud(x2(I)); x1(I(1))], [P_bin(I); flipud(P_bin(I)); P_bin(I(1))], [.8 .8 .8], 'edgecolor', 'none');
+semilogx(N2_ave, P_bin, 'k', 'linewidth', 0.25)
+hold off
+set(gca, 'ydir', 'reverse')
+axis([4e-5 5e-3 0 300])
+set(gca, 'xtick', [1e-4 1e-3])
+xlabel('N^2 (s^{-2})', 'FontSize', 9)
+set(gca, 'FontSize', 9)
+set(gca, 'yticklabel', [])
+set(gca, 'xminortick', 'off')
+set(gca, 'yminortick', 'on')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+
+subplot(1, 4, 3)
+
+semilogx(K_ave, P_bin, 'k', 'linewidth', 0.25)
+hold on
+%semilogx(K_ave*0+5.5e-5, P_bin, '--k', 'linewidth', 0.25)
+x2 = K_2p5;
+x1 = K_97p5;
+I = find(~isnan(x1)==1 & ~isnan(x1)==1);
+patch([x1(I); flipud(x2(I)); x1(I(1))], [P_bin(I); flipud(P_bin(I)); P_bin(I(1))], [.8 .8 .8], 'edgecolor', 'none');
+semilogx(K_ave, P_bin, 'k', 'linewidth', 0.25)
+hold off
+set(gca, 'ydir', 'reverse')
+axis([5e-6 1e-2 0 300])
+set(gca, 'xtick', [1e-5 1e-4 1e-3 1e-2])
+xlabel('K (m^2 s^{-1})', 'FontSize', 9)
+set(gca, 'FontSize', 9)
+set(gca, 'yticklabel', [])
+set(gca, 'xminortick', 'off')
+set(gca, 'yminortick', 'on')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+
+
+subplot(1, 4, 4)
+
+semilogx(F_ave, P_bin, 'k', 'linewidth', 0.25)
+hold on
+%semilogx(K_ave*0+5.5e-5, P_bin, '--k', 'linewidth', 0.25)
+x2 = F_2p5; % Here few tweaking to do
+x1 = F_97p5;
+I = find(x1<0);
+if ~isempty(I)    % for CAmil's scripts!!
+    x2(I)=1e-10;
+end
+I = find(~isnan(x1)==1 & ~isnan(x1)==1);
+patch([x1(I); flipud(x2(I)); x1(I(1))], [P_bin(I); flipud(P_bin(I)); P_bin(I(1))], [.8 .8 .8], 'edgecolor', 'none');
+semilogx(F_ave, P_bin, 'k', 'linewidth', 0.25)
+hold off
+set(gca, 'ydir', 'reverse')
+axis([5e-6 1e-2 0 300])
+set(gca, 'xtick', [1e-5 1e-4 1e-3 1e-2])
+xlabel('F (mmol m^{-2} s^{-1})', 'FontSize', 9)
+set(gca, 'FontSize', 9)
+set(gca, 'yticklabel', [])
+set(gca, 'xminortick', 'off')
+set(gca, 'yminortick', 'on')
+set(gca, 'xgrid', 'on')
+set(gca, 'xminorgrid', 'off')
+set(gca, 'tickdir', 'out')
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+% - save variables - %
+%%%%%%%%%%%%%%%%%%%%%%
+
+save boot_VMP.mat P_bin K_ave K_2p5 K_97p5 eps_ave eps_2p5 ...
+    eps_97p5 N2_ave N2_2p5 N2_97p5 NO3_ave NO3_2p5 NO3_97p5 F_ave F_2p5 F_97p5 
+
+disp(sprintf('  %d profiles used', N))
+
+keyboard

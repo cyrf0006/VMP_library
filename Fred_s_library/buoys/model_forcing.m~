@@ -1,0 +1,171 @@
+function model_forcing(meteo_files, date_files, varargin);
+
+
+%function model_forcing(meteo_files, date_files, varargin);
+% This function extract and format a climatology to force a
+% diffusivity model. The Script is base on the original
+% buoy_clim.m, but is now adapted to extract SST and SSS. 
+% 
+% Function inputs:
+%  - meteo_files: a list of meteoXX.dat from 
+%     "ls -1 meteo*.dat | sed 's/\dat//' > meteo_files" 
+%  - date_files: a list of dateXX.dat obtained the same way    
+%     "ls -1 date*.dat | sed 's/\dat//' > date_files" 
+%  - varargin: 
+%
+%  NOTE: meteo*.dat and date*.dat have been extracted from SGDO's
+%  raw buoy files from  (ex: MMOB_BOUEE2002_RIMOUSKI_IML4_METOCE.ODF)
+%  the method is to 1st use a shell script to modify files from ODF to
+%  ASCII: "~/shellscripts/ODF2ASCII.sh  MMOB_BOUEE2008_RIMOUSKI_IML4_METOCE.ODF meteo08 date08"
+%    
+% Function outputs:
+%  - 
+%    
+%
+% author: F. Cyr, feb 2011
+%
+%
+%
+% ------------------------------------------------------------------------%
+
+% $$$ % Varargin test
+% $$$ if isempty(varargin)==1
+% $$$     sm = 0; %save micro = no!
+% $$$     sf = 0;
+% $$$     gmtd=0;
+% $$$ elseif size(varargin,2)==1
+% $$$     sm = strcmp(varargin{1}, 'micro');
+% $$$     sf = strcmp(varargin{1}, 'fine');
+% $$$     gmtd = strcmp(varargin{1}, 'gmtd');
+% $$$     
+% $$$ elseif size(varargin,2)==2
+% $$$     sm = strcmp(varargin{1}, 'micro') + strcmp(varargin{2}, 'micro');
+% $$$     sf = strcmp(varargin{1}, 'fine') + strcmp(varargin{2}, 'fine');
+% $$$     gmtd = strcmp(varargin{1}, 'gmtd') + strcmp(varargin{2}, 'gmtd');
+% $$$ elseif size(varargin,3)==3
+% $$$     sm = strcmp(varargin{1}, 'micro') + strcmp(varargin{2}, 'micro') ...
+% $$$          + strcmp(varargin{3}, 'micro');
+% $$$     sf = strcmp(varargin{1}, 'fine') + strcmp(varargin{2}, 'fine') ...
+% $$$          + strcmp(varargin{3}, 'fine');
+% $$$     gmtd = strcmp(varargin{1}, 'gmtd') + strcmp(varargin{2}, 'gmtd') ...
+% $$$            + strcmp(varargin{3}, 'gmtd');
+% $$$ else
+% $$$     disp('Wrong input... try "help var_profile_cal"')
+% $$$     return
+% $$$ end
+
+
+% load meteo_files
+fid = fopen(meteo_files);
+C = textscan(fid, '%s', 'delimiter', '\n');
+meteofiles = char(C{1});
+
+% load date_files
+fid = fopen(date_files);
+C = textscan(fid, '%s', 'delimiter', '\n');
+datefiles = char(C{1});
+
+
+count = 1;
+% store all data in very long vectors (all years in a row)
+for i=1:size(meteofiles,1)
+    
+    system(['rm -rf OUT']);
+    system(['sed -s "s/:/ /g" ' datefiles(i,:) ' > OUT']);
+    system(['sed -s "s/-/ /g" OUT > /tmp/tmp.txt']);
+    system(['mv /tmp/tmp.txt ./OUT']);
+    
+    meteo = load(meteofiles(i,:));
+    datef = load('OUT');
+    
+    L = length(meteo(:,1)); %number of recorded step
+    
+    windsp(count:count+L-1) = meteo(:,3);
+    windir(count:count+L-1) = meteo(:,7); %degrees
+    gustsp(count:count+L-1) = meteo(:,5);
+    pres(count:count+L-1) = meteo(:,13); %hPa
+    temp(count:count+L-1) = meteo(:,9);
+    sst(count:count+L-1) = meteo(:,15); 
+    sss(count:count+L-1) = meteo(:,19); 
+    rh(count:count+L-1) = meteo(:,11)./100; % rel hum.
+     
+    yyyy(count:count+L-1) = datef(:,1);
+    mm(count:count+L-1) = datef(:,2);
+    dd(count:count+L-1) = datef(:,3);
+
+/    clear meteo datef
+
+    count = count+L;
+end
+
+%vector with all data time
+n = datenum(yyyy, mm, dd);
+
+% Want wind stress?? see buoy_clim.m
+% Want heat flux?? see buoy_clim.m
+
+RENDU ICI
+
+%%%%%%%%%%%%%%%%%%
+% - daily clim - %
+%%%%%%%%%%%%%%%%%%
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% empty matrix for daily clim
+daily_wind(1:365, 1:size(meteofiles,1))=NaN;
+daily_T=daily_wind;
+daily_SST = daily_wind;
+daily_HR = daily_wind;
+daily_pres = daily_wind;
+
+years = 2002:2009;
+
+for k = 1:length(years)
+
+    
+    %days in this year
+    nn = datenum(years(k), 1, 1):datenum(years(k), 12, 31);
+    
+    %bissextile
+    if length(nn)==366
+        nn(60)=[];
+    end
+        
+    
+    for j = 1:length(nn)
+ 
+        I = find(n == nn(j));
+
+        daily_wind(j,k) = nanmean(windsp(I)); %windspeed, not tau
+        daily_T(j,k) = nanmean(temp(I)); 
+        daily_SST(j,k) = nanmean(sst(I));
+        daily_HR(j,k) = nanmean(rh(I));
+        daily_pres(j,k) = nanmean(pres(I));    
+   
+    end
+    
+    
+
+end
+clear temp sst nc rh pres
+
+daily_wind_clim = nanmean(daily_wind, 2); %windspeed
+daily_T_clim = nanmean(daily_T, 2);
+daily_SST_clim = nanmean(daily_SST, 2);
+daily_HR_clim = nanmean(daily_HR, 2);
+daily_pres_clim = nanmean(daily_pres, 2);
+
+daily_n_clim = [datenum(999, 1, 1):datenum(999, 12, 31)]';
+
+% save daily clim
+dlmwrite('daily_clim.dat', [daily_n_clim daily_wind_clim daily_T_clim daily_SST_clim ...
+                  daily_HR_clim daily_pres_clim ],'delimiter',' ','precision',6);
+
+% save raw daily values
+dlmwrite('raw_daily_wind.dat',daily_wind ,'delimiter',' ','precision',6);
+dlmwrite('raw_daily_T.dat',daily_T ,'delimiter',' ','precision',6);
+dlmwrite('raw_daily_SST.dat',daily_SST ,'delimiter',' ','precision',6);
+dlmwrite('raw_daily_HR.dat',daily_HR ,'delimiter',' ','precision',6);
+dlmwrite('raw_daily_pres.dat',daily_pres ,'delimiter',' ','precision',6);
+

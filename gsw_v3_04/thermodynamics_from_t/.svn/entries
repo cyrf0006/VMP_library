@@ -1,0 +1,273 @@
+10
+
+dir
+0
+http://demeter.uqar.ca/svn/VMP_library/trunk/gsw_v3_04/thermodynamics_from_t
+http://demeter.uqar.ca/svn/VMP_library
+add
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+06f62664-3b09-4ff1-8ccd-4bb778199406
+
+gsw_isochoric_heat_cap_t_exact.m
+file
+
+
+
+add
+
+gsw_beta_const_CT_t_exact.m
+file
+
+
+
+add
+
+gsw_deltaSA_from_rho_t_exact.m
+file
+
+
+
+add
+
+gsw_alpha_wrt_t_exact.m
+file
+
+
+
+add
+
+gsw_enthalpy_t_exact.m
+file
+
+
+
+add
+
+gsw_alpha_wrt_pt_t_exact.m
+file
+
+
+
+add
+
+gsw_dilution_coefficient_t_exact.m
+file
+
+
+
+add
+
+gsw_dynamic_enthalpy_t_exact.m
+file
+
+
+
+add
+
+gsw_enthalpy_first_derivatives_wrt_t_exact.m
+file
+
+
+
+add
+
+gsw_kappa_t_exact.m
+file
+
+
+
+add
+
+gsw_chem_potential_water_t_exact.m
+file
+
+
+
+add
+
+gsw_SA_from_rho_t_exact.m
+file
+
+
+
+add
+
+gsw_cp_t_exact.m
+file
+
+
+
+add
+
+gsw_osmotic_pressure_t_exact.m
+file
+
+
+
+add
+
+gsw_alpha_wrt_CT_t_exact.m
+file
+
+
+
+add
+
+gsw_sound_speed_t_exact.m
+file
+
+
+
+add
+
+gsw_t_deriv_chem_potential_water_t_exact.m
+file
+
+
+
+add
+
+gsw_pot_rho_t_exact.m
+file
+
+
+
+add
+
+gsw_specvol_t_exact.m
+file
+
+
+
+add
+
+gsw_osmotic_coefficient_t_exact.m
+file
+
+
+
+add
+
+gsw_t_from_rho_exact.m
+file
+
+
+
+add
+
+gsw_CT_first_derivatives_wrt_t_exact.m
+file
+
+
+
+add
+
+gsw_chem_potential_salt_t_exact.m
+file
+
+
+
+add
+
+gsw_Helmholtz_energy_t_exact.m
+file
+
+
+
+add
+
+gsw_sigma0_pt0_exact.m
+file
+
+
+
+add
+
+gsw_beta_const_t_exact.m
+file
+
+
+
+add
+
+gsw_beta_const_pt_t_exact.m
+file
+
+
+
+add
+
+gsw_specvol_anom_t_exact.m
+file
+
+
+
+add
+
+gsw_internal_energy_t_exact.m
+file
+
+
+
+add
+
+gsw_t_maxdensity_exact.m
+file
+
+
+
+add
+
+gsw_chem_potential_relative_t_exact.m
+file
+
+
+
+add
+
+gsw_rho_t_exact.m
+file
+
+
+
+add
+
+gsw_adiabatic_lapse_rate_t_exact.m
+file
+
+
+
+add
+
+gsw_entropy_t_exact.m
+file
+
+
+
+add
+
+gsw_kappa_const_t_exact.m
+file
+
+
+
+add
+

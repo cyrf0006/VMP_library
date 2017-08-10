@@ -1,0 +1,9 @@
+% Script written to execute many times SST_map.m
+
+
+[thresh, S] = SST_map('sstMap_may.list', [47.25 49.5], [-70.5 -67])
+[thresh, S] = SST_map('sstMap_june.list', [47.25 49.5], [-70.5 -67])
+[thresh, S] = SST_map('sstMap_july.list', [47.25 49.5], [-70.5 -67])
+[thresh, S] = SST_map('sstMap_aug.list', [47.25 49.5], [-70.5 -67])
+[thresh, S] = SST_map('sstMap_sept.list', [47.25 49.5], [-70.5 -67])
+[thresh, S] = SST_map('sstMap_oct.list', [47.25 49.5], [-70.5 -67])

@@ -1,0 +1,162 @@
+function monthly_clim_model_cmos(month, model_T, model_N, varargin)
+
+% function monthly_clim_model(month, model_output, varargin)
+% 
+% Used to plot a monthly climatology of CTD profiles with the
+% uncertainty, together with the results of the diffusivity model
+% for each monthly average.
+%
+% usage ex: 
+% >> monthly_clim_model([5 6 7 8 9 10 11], 'T_diffus_daily_Kobs.dat', 'N_diffus_daily.dat')
+% >> monthly_clim_model([4 5 6 7 8 9 10 11], 'T_diffus_daily_5p5e-5.dat', 'N_diffus_daily.dat', 'T_diffus_daily_Kobs.dat')
+% >> monthly_clim_model_cmos([4 5 6 7 8 9 10 11],'T_diffus_daily_Kveryveryall.dat', 'N_diffus_daily.dat', 'T_diffus_daily_Kobs.dat')
+%
+% If only one modeloutput is specified, the results will be a
+% subplot for each month where the CTD observations are in a shade
+% of gray while the modeled profile if superimposed. If another
+% model output is specified, the second profile is also
+% superimposed with a dashed line. Note that times of both output
+% must be the same... (This is easy to adjust but I dont want to
+% include too many parameters for the moment!)
+%
+% NOTE: to be run in  ~/WINDEX/data_processing/1D_mixing/
+%
+% Frederic Cyr - march 2011
+%
+% -------------------------------------------------------------- %
+
+% --- Deal with varargin --- %
+if isempty(varargin)==1
+    xtra = 0;
+elseif size(varargin,2)==1
+    xtra = 1;
+    model_T2 = varargin{1};
+ elseif size(varargin,2)==2
+    xtra = 2;
+    model_T2 = varargin{1};
+    model_T3 = varargin{2};
+else
+    disp('Wrong input... try "help monthly_clim_model"')
+    return
+end
+
+% *********************** Adjust_space.m ************************ %
+% Fields required by the function adjust_space.m. Please fill every
+% of the following and call "adjust_space" in the script whenever
+% you want. 
+ncol = 4; % no. subplot column
+nrow = 2; % no. subplot row
+dx = 0.03 ; % horiz. space between subplots
+dy = 0.04; % vert. space between subplots
+lefs = 0.1; % very left of figure
+rigs = 0.1; % very right of figure
+tops = 0.05; % top of figure
+bots = 0.1; % bottom of figure
+figw = (1-(lefs+rigs+(ncol-1)*dx))/ncol;
+figh = (1-(tops+bots+(nrow-1)*dy))/nrow;
+count_col = 1;
+count_row = 1;
+% *************************************************************** %
+
+
+% -- Zoom options -- %
+pmin = 50;
+pmax = 150;
+pmin = 1;
+pmax = 300;
+
+% --- Plot --- %
+figure(1)
+clf
+set(gcf,'PaperUnits','centimeters','PaperPosition',[1 1 15 15])
+
+% load model results
+Tmod = load(model_T);
+Nmod = load(model_N);
+
+% loop on climatology
+for i = 1:length(month)
+    disp(sprintf('month %d', month(i)))
+    II = find(str2num(datestr(Nmod,5))==month(i));
+        
+    if month(i) <10
+        Tname  = sprintf('T_bootclim_0%d.dat', month(i));
+    else
+        Tname  = sprintf('T_bootclim_%d.dat', month(i));
+    end
+    
+    T = load(Tname);
+    Tm = nanmean(Tmod(:,II), 2);
+    To_ave = T(:,2);
+    To_2p5 = T(:,3);
+    To_97p5 = T(:,4);
+    P = T(:,1);   
+
+    x1 = To_2p5;
+    x2 = To_97p5 ;
+    
+    % second input
+    Tmod2 = load(model_T2);      
+    Tm2 = nanmean(Tmod2(:,II), 2);
+    
+    % temperature plot
+    figure(1)
+    subplot(2, 4, i)
+% $$$     plot(Tm, P, 'b', 'linewidth', 1.5)
+% $$$     hold on
+% $$$     plot(Tm2, P, 'r', 'linewidth', 1.5)
+% $$$    
+% $$$     if i == 1
+% $$$         legend('obs','{K_i}', '{K_a}', 'location', 'northeast')
+% $$$     end  
+    
+    plot(To_ave, P, 'k', 'linewidth', 1.5)
+
+    %patch([x1; flipud(x2); x1(1)], [P; flipud(P); P(1)], [.7 .7 .7], 'edgecolor', 'none');
+    hold on
+    plot(Tm2, P, 'r', 'linewidth', 1.5)
+    plot(Tm, P, 'b', 'linewidth', 1.5)
+    hold off
+    set(gca, 'ydir', 'reverse')
+    set(gca, 'ygrid', 'on')
+    set(gca, 'xgrid', 'on')
+    set(gca, 'box', 'on')
+    set(gca, 'xminortick', 'on')
+    set(gca, 'yminortick', 'on')
+
+    axis([-1 6 pmin pmax])
+    ylabel('')
+    xlabel('')
+    %    title(datestr(Nmod(II(1)), 3))
+    text(-0.5, 295,datestr(Nmod(II(1)), 3), 'fontsize', 10, 'verticalalignment', 'bottom', 'horizontalalignment', ...
+                        'left','BackgroundColor',[1 1 1])
+
+    if i == 1 | i == 5
+        ylabel('P (dbar)')
+    end
+    if i == 5
+        xlabel('T(^{\circ}C)')
+    end
+    if i == 2 | i == 3 | i == 4 | i == 6 | i == 7 | i == 8
+        set(gca, 'yticklabel', '')
+    end
+    if i == 1 | i == 2 | i == 3 | i == 4
+        set(gca, 'xticklabel', '')
+    end
+% $$$     if i == 1
+% $$$         h_legend = legend('observ','{K_i}', '{K_a}', 'location', 'best');
+% $$$         set(h_legend,'FontSize',12);
+% $$$         posh = get(h_legend, 'position');
+% $$$         posh(2)=.81;
+% $$$         posh(1) = 0.155;
+% $$$         set(h_legend, 'position', posh)
+% $$$         %keyboard
+% $$$     end  
+    adjust_space
+    
+
+end %for i
+
+figure(1)
+print('-deps2', 'monthly_clim_obs_mod_cmos.eps')
+print('-dpng', '-r300', 'monthly_clim_obs_mod_cmos.png')

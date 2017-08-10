@@ -1,0 +1,47 @@
+function [Xfield, xbin, zbin]=getTransect(station_file)
+    
+    
+    fid = fopen(station_file)
+    
+    C = textscan(fid, '%s', 'delimiter', '\n');
+    stat = char(C{1});
+
+    no_station = size(stat,1); 
+
+    % distance from head (stat16 -> 23)
+    dist = [698.2 512.3 422.3 350.6 286.9 191.5 128.4 79.8 34.9 0];
+    dist = round(dist);
+
+    % Define regular grid
+    zbin = 1:1:450;
+    xbin = 0:1:700;
+
+
+
+    X_stations = nan(length(zbin), no_station);
+    X_stations = nan(length(zbin), no_station);
+
+    for i = 1:no_station
+        
+        file = load(stat(i,:)); % [P X X2.5 X97.2 X2.5_raw X97.5_raw]
+        
+        % Eliminate bins where number of profile is small (no statistics)
+        X = file(:,2);
+        X2p5 = file(:,3);
+        X97p5 = file(:,4);
+        I = find(~isnan(X)==1);
+        I1 = find(~isnan(X2p5)==1);
+        I2 = find(~isnan(X97p5)==1);
+        
+        if length(I)==length(I1) & length(I)==length(I2)
+            X_stations(1:length(I),i) = X(I);
+        else        
+            X_stations(1:length(I2),i) = X(I2);
+        end
+    end
+
+    % test griddata
+
+    [XI, YI] = meshgrid(xbin,zbin);
+    ZI = griddata(dist,zbin,X_stations,XI,YI, 'linear');
+    X_transect = ZI;

@@ -1,0 +1,76 @@
+function[y2]= batchSpectrum(kB,k_obs,S_obs)
+
+%This function (m-file) takes a given kB values, the observed spectral
+%data, the observed k values, and returns a theoretical spectrum based on them.
+%The observed spectral data is included to ensure that the theoretical spectral
+%values that are calculated are done at the same intervals as the original,
+%making it possible (later) to directly compare the theoretical and observed spectra.
+%Batch_spec calls no other m-files or functions.
+%
+%INPUTS:->k_obs->This is a vector of k values from the observed spectrum data.
+%			   	The vector is x by 1 in size, where x is the number of k values
+%			S_obs  -> This is a vector of observed spectral values from the spectral
+%						data. The vector is x by 1 in size, x as before.
+%			kB -> a kB value, determined before calling the function, to generate the
+%					theoretical spectrum at. 
+%OUTPUTS:-> y2 -> a x by 1 vector containing the theoreical spectral values, where
+%					x is the length of k_obs or S_obs.
+
+
+k=k_obs;
+nois=noise(k);
+
+dk=k(3)-k(2);
+N=(length(k));
+B=[];
+for i=1:N
+    B=[B, (S_obs(i)*dk)];
+end
+  
+  
+Dt=.00000014;
+p  = 0.2316419;
+b1=  0.319381530;
+b2 =-0.356563782;
+b3=  1.781477937;
+b4= -1.821255978;
+b5=  1.330274429 ;
+% This is \Chi
+Xsix=6*Dt*(sum(B)-(nois*N*dk));
+
+X=[];
+for i=1:length(k)%make compatable with other variables
+   X=[X;Xsix(i)];
+end
+
+
+Q=[];
+Z=[];
+t=[];  
+grif=[];
+
+alpha=[];  
+alpha=sqrt(2.*(3.2))*(k./kB);  
+t = 1.0./(1.0+p.*alpha);
+Z = (1.0./sqrt(2*pi)).*exp(-alpha.*alpha/2.0);
+Q = Z .* (((((b5.*t + b4).*t + b3).*t + b2).*t + b1).*t);
+
+grif=alpha .* (exp(-alpha.*alpha/2.0) - alpha .* sqrt(2*pi) .* Q);
+y= sqrt(3.2/2).*((X.*grif)./(kB.*Dt));
+
+
+y2=[];
+for i=1:length(k)%make compatable with other variables
+         y2=[y2,y(i)];
+end
+   
+for i=1:length(y2)
+    if y2(i)<0
+        y2(i)=0;
+    end
+end
+
+        
+      
+      
+      
