@@ -1,31 +1,33 @@
 %% viscosity
-% Calculate kinematic and molecular viscosity of sea water
+% The kinematic and dynamic viscosity of sea-water
 %%
-% <latex>\index{Type A!viscosity}</latex>
+% <latex>\index{Functions!viscosity}</latex>
 %
 %%% Syntax
+%   [nu, mu] = viscosity( S, T, r )
 %
-%   [nu, mu] = viscosity( s, t, r )
-%
-% * [t] temperature in degrees Celsius
-% * [s] salinity in practical salinity units
-% * [r] density in kg/m^3
+% * [T] temperature in units of degrees Celsius
+% * [S] salinity in practical salinity units
+% * [r] density in units of kg per cubic-metre
 % * []
-% * [nu] the kinematic viscosity in units of m^2/s
-% * [mu] the molecular viscosity in units of kg/(m*s)
+% * [nu] the kinematic viscosity in units of metres-squared per second
+% * [mu] the dynamic viscosity in units of kg per metre per second
 %
 %%% Description
 %
-% Calculates the kinematic and molecular viscosity of sea water following
-% Millero (1974). The range of validity is (5 <= t <= 25) and (0 <= S <= 40) at 
-% atmospheric pressure.
+% Calculates the kinematic viscosity, $\nu$ $[\si{\square\m\per\s}]$, and
+% dynamic viscosity, $\mu$ $[\si{\kg\per\m\per\s}]$, of 
+% sea-water following Millero (1974). The range of validity is $5 \le T \le
+% \SI{25}{\celsius}$ and $0 \le S \le \SI{40}{PSU}$ at atmospheric pressure.
 %
-% Check values are: t = 25, s = 40, r(t,s): mu = 9.6541e-4.
+% Check values are: $\texttt{T = 25, S = 40, r(T,S): mu = 9.6541e-4}$.
 %
 % References:
 %
 % # Millero, J. F., 1974, The Sea, Vol 5, M. N. Hill, Ed, John Wiley, NY, p. 3.
 % # Peters and Siedler, in Landolt-Bornstein New Series V/3a (Oceanography), pp 234.
+
+% * 2015-11-02 RGL Documentation changes
 
 function [nu, mu] = viscosity(s,t,r)
 %

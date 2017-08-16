@@ -1,32 +1,31 @@
 %% TI_correction
-% Derive the corrected temperature of the fluid in the conductivity cell.
+% Derive the corrected temperature of the fluid in a conductivity cell.
 %%
-% <latex>\index{Type A!TI\_correction}</latex>
+% <latex>\index{Functions!TI\_correction}</latex>
 %
 %%% Syntax
 %
 %   T_cell = TI_correction( T, alpha, beta, fs )
 %
-% * [T]      Temperature measured by the SBE3F thermometer representing the 
-%            environmental temperature.
-% * [alpha]  Amplitude coefficient for the thermal inertial of the  SBE4C 
-%            conductivity cell.
-% * [beta]   Inverse relaxation time for the thermal inertia of the SBE4C 
-%            conductivity cell, in units of 1/s.
+% * [T]      Environmental temperature measured by a thermometer.
+% * [alpha]  Amplitude coefficient for the thermal inertial of the
+%            conductivity cell. 
+% * [beta]   Inverse relaxation time for the thermal inertia of the
+%            conductivity cell, in units of 1/s. 
 % * [fs]     Sampling rate of the data, in samples per second.
 % * []
-% * [T_cell] Water temperature in the cell adjusted for the thermal inertial
-%            of the cell. This value should be used for salinity calculations
-%            but not for density calculations.
+% * [T_cell] Water temperature in the cell. This value should be used for
+%            salinity calculations but not for density calculations.
 %
 %%% Description
 % 
-% Adjusts the temperature measured with a Sea-Bird SBE3F thermometer to account
-% for the temperature anomaly resulting from the thermal inertia generated 
-% inside a Sea-Bird SBE4C conductivity cell.  This function is based on Lueck 
-% (1990), Lueck and Picklo (1990) and Morrison et al (1994). The user should be 
-% familiar with these papers to fully understand when this function should be 
-% used.
+% Adjust the temperature measured with a thermometer to account
+% for the temperature anomaly in a conductivity cell due to the thermal
+% inertia of the cell. This function was originally written to process data
+% collected with the Sea-Bird SBE3F and SBE4C sensors, but it can be used
+% with any conductivity cell. This function is based on Lueck 
+% (1990), Lueck and Picklo (1990) and Morrison et al (1994). Familiarity
+% with these papers is nearly a pre-requisite for using this function. 
 %
 % The algorithm originally proposed by Lueck and Picklo (1990) tries to
 % adjust the measured conductivity to account for the thermal inertial of the
@@ -47,15 +46,17 @@
 % calculate the salinity. The density is then calculated with this salinity,
 % the real temperature in the water, and the pressure.
 %
-% The coefficients alpha and beta are pump-speed dependent. The original
-% estimates by Lueck and Picklo (1990) have alpha = 0.021, and beta = 1/12
-% for an un-pumped system. A pumped system will have a larger beta. The user
-% has to play with these coefficients to get the best correction but even
-% poor guesses of their values reduces significantly the errors in the
-% calculated salinity. These errors are frequently called 'salinity spikes'.
-% The user should also know that this function corrects only the thermal
-% inertia. The short-term mismatch between the measured temperature and
-% conductivity must also be corrected to reduce spurious salinity signals.
+% The coefficients $\texttt{alpha}$ and $\texttt{beta}$ are pump-speed
+% dependent. The original estimates by Lueck and Picklo (1990) have
+% $\texttt{alpha}$ = 0.021, and $\texttt{beta}$ = 1/12 for an un-pumped
+% system. A pumped system will have a larger $\texttt{beta}$. The user has
+% to play with these coefficients to get the best correction but even poor
+% values reduce significantly the errors in the calculated salinity. These
+% errors are frequently called 'salinity spikes'.
+%
+% This function corrects only the thermal inertia. The short-term mismatch
+% between the measured temperature and conductivity must be corrected
+% before using this function. 
 % 
 % # Lueck, R.G., 1990, Thermal inertia of conductivity cells: Theory, J.
 %   Atmos. Oceanic. Technol., 7, 741-768.
@@ -70,6 +71,8 @@
 % * 2007-12-21 (RGL) original function
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-10-24 (WID) documentation update
+% * 2015-11-02 (RGL) Documentation changes
+% * 2015-11-19 (RGL) Documentation changes
 
 function [T_cell]= TI_correction (T,alpha, beta, fs)
 

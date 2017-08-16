@@ -1,20 +1,11 @@
 %% fix_underscore
-% Escape underscore in supplied string for LaTeX
+% Legacy function replaced with texstr
 %%
-% <latex>\index{Type B!fix\_underscore}</latex>
-%
-%%% Syntax
-%   stringOut = fix_underscore( stringIn )
-%
-% * [stringIn] Input string.
-% * []
-% * [stringOut] Copy of the input string with all underscore characters 
-%         prepended with a forward slash '\'.
+% <latex>\index{Depreciated!fix\_underscore}</latex>
 %
 %%% Description
-% Escape the underscore character '_' into '\_'  within a string so that Matlab 
-% functions do not interpret it as a subscript command.  This function
-% allows file names to contain an underscore within plot text.
+% Depreciated function.  Please use $\texttt{texstr}$ in place of this
+% function.
 
 % Version History
 %
@@ -24,14 +15,7 @@
 % * 2012-11-05 (WID) documentation update
 
 function string_out=fix_underscore(string_in)
+    warning('The function fix_underscore is depreciated.  Please use texstr.');
+    string_out = texstr(string_in);
+end
 
-l = length (string_in); 
-string_out = string_in;
-n = find(string_out == '_');
-if ~isempty(n)
-	for k = 1:length(n)
-		string_out = [string_out(1:n(k)-1) '\_' string_out(n(k)+1:l)];
-		n = find(string_out == '_');
-		l = length(string_out); % get new length
-	end
-end % got all of the under_scores

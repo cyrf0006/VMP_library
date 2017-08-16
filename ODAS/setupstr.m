@@ -1,7 +1,7 @@
 %% setupstr
-% Read attributes from an ODAS configuration string.
+% Read attributes of a configuration string from a RSI raw binary data file.
 %%
-% <latex>\index{Type A!setupstr}</latex>
+% <latex>\index{Functions!setupstr}</latex>
 %
 %%% Syntax
 %
@@ -13,10 +13,9 @@
 %%% Description
 %
 % This function will extract requested attributes from an input string. The
-% string should be an ODAS configuration string - an INI-like string used to 
-% store values used by the ODAS library.  This string can be obtained by reading
-% a configuration file (.cfg) or by extracting the relevant parts of a ODAS v6
-% or higher data file.
+% string should be a configuration string that was extracted out of a RSI
+% data file. This string can also be obtained by reading a configuration
+% file (.cfg). 
 %
 %%% Usage
 %
@@ -25,76 +24,84 @@
 %
 % The first argument is the configuration string, either extracted from a data
 % file or loaded from a configuration file.  When this is the only argument, the
-% setupstr function returns an indexed structure containing the contents of the
-% configuration string.  This indexed structure can be used in place of the 
-% configuration string for subsequent function calls thereby reducing the time
-% required to make those calls.
+% $\texttt{setupstr}$ function returns an indexed structure containing the contents of the
+% configuration string. This indexed structure can be used in place of the 
+% configuration string, for subsequent function calls, to greatly increase
+% the speed of this function.
 %
-%   - obj = SETUPSTR('config_string')
-%      Parse the string 'config_string' and return 'obj'.  The returned value 
-%      is a data structure containing values within the config_string.  The 
-%      returned 'obj' is used in subsequent calls to the function.
+%    >> obj = SETUPSTR('config_string')
 %
-%   - S = SETUPSTR( obj, 'section' )
-%      Find sections within 'obj' that match the value 'section'.  See Notes
-%      for additional information regarding search queries.  The returned value
-%      'S' is a cell array containing the matching section identifiers in string
-%      format.
+% Parse the string $\texttt{'config\_string'}$ and return $\texttt{obj}$, a
+% data structure containing the values in $\texttt{config\_string}$. The
+% returned $\texttt{obj}$ can be used in subsequent calls to the function. 
 %
-%   - V = SETUPSTR( obj, 'section', 'parameter' )
-%      Find parameter values within 'obj' that are located in 'section' and 
-%      have the parameter name 'parameter'.  See Notes for additional 
-%      information regarding search queries.  The returned value 'V' is a cell 
-%      array containing the matching string values.
+%    >> S = SETUPSTR( obj, 'section' )
 %
-%   - [S, P, V] = SETUPSTR( obj, 'section', 'parameter', 'value')
-%      Find values within 'obj' that are located in 'section', have the 
-%      parameter name 'parameter', and the parameter value 'value'.  See Notes
-%      for additional information regarding search queries.  The returned values
-%      are a tuple of cell arrays containing the matching sections, parameter 
-%      names, and parameter values.
+% Find sections within $\texttt{obj}$ that match the value
+% $\texttt{'section'}$. See Notes for additional information regarding
+% search queries. The returned value $\texttt{S}$ is a cell array
+% containing the matching section identifiers in string format.
+%
+%    >> V = SETUPSTR( obj, 'section', 'parameter' )
+%
+% Find parameter values within $\texttt{obj}$ that are located in
+% $\texttt{'section'}$ and have the parameter name $\texttt{'parameter'}$.
+% See Notes for additional information regarding search queries. The
+% returned value $\texttt{V}$ is a cell array containing the matching
+% string values.
+%
+%    >> [S, P, V] = SETUPSTR( obj, 'section', 'parameter', 'value')
+%
+% Find values within $\texttt{obj}$ that are located in
+% $\texttt{'section'}$, have the parameter name $\texttt{'parameter'}$, and
+% the value $\texttt{'value'}$. See Notes for additional information
+% regarding search queries. The returned values are a tuple of cell arrays
+% containing the matching sections, parameter names, and parameter values.
 %
 % * [config_string] Configuration string.
-% * [obj]     Either the configuration string or a previously returned 
-%             structure containing indexed values from a configuration string.
+% * [obj]   A previously returned structure containing indexed values
+%           from a configuration string. 
 % * [section] Search query for a matching section identifier.
 % * [parameter] Search query for a matching parameter name.
 % * [value]   Search query for a matching parameter value.
 % * []
-% * [obj] Structure containing indexed values from a configuration file. Passed
-%         to subsequent calls to this function to speed the search.
+% * [obj] Structure containing indexed values from a configuration string,
+%         that can be used in subsequent calls to this function to speed
+%         the search.
 % * [S]   Matching sections as an array of cells.
 % * [P]   Matching parameter names as an array of cells.
 % * [V]   Matching parameter values as an array of cells.
 %
 %%% Notes
 %
-% All search queries are interpreted as regular expressions.  If empty, the 
-% query will match anything by using the regular expression '.*'.  Each search 
-% query is prepended with '^' and appended with '$' to ensures exact matches.
+% The $\texttt{[root]}$ section in a configuration file is usually not
+% declared explicitly. It exists implicitly and consists of all content
+% before the first explictly declared section. To access the parameters
+% within the $\texttt{root}$ section, use $\texttt{'root'}$ for the section
+% identifier.
 %
-% Parameters that precede the first section are said to be in the 'root' 
-% section.  To access these parameters, use 'root' as the section identifier.
 %
 %%% Examples
 %
 %    >> cfg = setupstr( setupfilestr );
 %    >> value = setupstr( cfg, 'P', 'coef0' )
 %
-% From the variable 'setupfilestr', which contains a configuration file, query
-% the value of 'coef0' for the pressure channel.
+% From the variable $\texttt{setupfilestr}$, which is a string containing
+% the entire configuration file used for data acquisition, query the value
+% of the parameter $\texttt{'coef0'}$ for the pressure channel. 
 %
 %    >> sections = setupstr( setupfilestr, '' )
 %
 % Find all sections within a configuration file.
 %
 %    >> cfg = setupstr( setupfilestr );
-%    >> [S,P,V] = setupstr( cfg, '', 'id.*', '' )
+%    >> [S,P,V] = setupstr( cfg, '', 'id', '' )
 %
-% Find all sections that have an 'id' value.  Allow for 'id_even' and 'id_odd'.
-%
-% Note: the above example will match any key starting with 'id'.  For a more
-% precise match, 'id.*' could be changed to 'id(_(even|odd))?'.
+% Find all sections that have a parameter with name $\texttt{id}$, and
+% place the section names into the cell-array $\texttt{S}$. The values of
+% the $\texttt{id}$-parameters are placed into $\texttt{V}$, and $\texttt{P}$
+% is filled with the value $\texttt{'id'}$. $\texttt{S}$,  $\texttt{P}$, and
+% $\texttt{V}$ have identical length.
 
 % Version History:
 % 
@@ -104,6 +111,13 @@
 %                    structure.
 % * 2012-11-22 (WID) updated documentation to match the manual
 % * 2012-02-26 (WID) updated documentation - incorrect pressure example
+% * 2013-05-23 (WID) modified so that no-fast, no-slow, and num_rows are
+%                    no longer required.
+% * 2014-01-21 (WID) corrected bug with single row matrix
+% * 2015-11-13 (WID) remove channels that are not found within the matrix.
+% * 2015-11-19 (RGL) Corrected documentation.
+% * 2015-11-19 (WID) Tweak channels of type "accel" into channels of type
+%                    "piezo" if required.
 
 function varargout = setupstr(arg1, arg2, arg3, arg4)
 
@@ -114,14 +128,16 @@ end
 
 
 if nargin == 1
-  varargout{1} = parse_setup_file (arg1);
+  if isstruct(arg1), varargout{1} = arg1; return; end
+  arg1 = tweak_setup_structure( parse_setup_file( arg1 ) );
+  varargout{1} = arg1;
 end
 
 
 % Assume a section expression was provided, return matching section.
 if nargin == 2
   if isa( arg1, 'char' )
-	arg1 = parse_setup_file( arg1 );
+    arg1 = tweak_setup_structure( parse_setup_file( arg1 ) );
   end
   out = {};
   for i = section_indexes(arg1, arg2)
@@ -134,7 +150,7 @@ end
 % Assume a section and key were provided, return all matching values.
 if nargin == 3
   if isa( arg1, 'char' )
-	arg1 = parse_setup_file( arg1 );
+    arg1 = tweak_setup_structure( parse_setup_file( arg1 ) );
   end
   out = {};
   for i = section_indexes(arg1, arg2)
@@ -149,7 +165,7 @@ end
 % Assume a section, key, and value were provided - return all matching truples.
 if nargin == 4
   if isa( arg1, 'char' )
-	arg1 = parse_setup_file( arg1 );
+    arg1 = tweak_setup_structure( parse_setup_file( arg1 ) );
   end
   if isempty(arg4), value = '.*'; else value = ['^' arg4 '$']; end
   sections = [];
@@ -302,4 +318,149 @@ end
 
 end
 
+
+
+% Make changes to the configuration structure right before it is returned.
+function clean = tweak_setup_structure( dirty )
+
+    % The returned value will be a slightly modified version of the
+    % original value.
+    clean = dirty;
+    
+    fast = setupstr( clean, 'root', 'no-fast' );
+    slow = setupstr( clean, 'root', 'no-slow' );
+    rows = setupstr( clean, 'matrix', 'num_rows' );
+    
+    % Inject values for no-fast, no-slow, and num_rows.
+    matrix = [];
+    for row = setupstr( clean, 'matrix', 'row[0-9]+' )
+        % Generate the matrix found with the configuration file.
+        C = textscan(row{1}, '%d');
+        matrix(end+1,:) = C{1}';
+    end
+    
+    % If required, insert the number of rows.
+    if isempty(rows)
+        rows = size(matrix, 1);
+        for x = 1:length(clean),
+            if strcmp(clean(x).k{1},'matrix'),
+                clean(x).v(end+1).k = 'num_rows';
+                clean(x).v(end).v = num2str(rows);
+                break;
+            end
+        end
+    end
+    
+    % If required, insert the number of fast and slow columns.
+    diffmatrix = sum(abs(diff(matrix)),1);
+    newslow = length(find(diffmatrix ~= 0));
+    newfast = length(find(diffmatrix == 0));
+
+    % Find the correct section but only instert the values if they are not
+    % already there.
+    for x = 1:length(clean),
+        % Find the root section.
+        if ~strcmp(clean(x).k{1},'root'), continue; end
+        clean(x).v(end+1).k = 'num_fast';
+        clean(x).v(end).v = num2str(newfast);
+        if isempty(fast)
+            clean(x).v(end+1).k = 'no-fast';
+            clean(x).v(end).v = num2str(newfast);
+        end
+        clean(x).v(end+1).k = 'num_slow';
+        clean(x).v(end).v = num2str(newslow);
+        if isempty(slow)
+            clean(x).v(end+1).k = 'no-slow';
+            clean(x).v(end).v = num2str(newslow);
+        end
+        break;
+    end
+    
+    % Supplement id_even and id_odd with an id parameter.    
+    previous = '';
+    for name = setupstr( clean, '', 'id|id_even|id_odd', '' );
+        ch = char(name);
+        
+        % Process each section only once.  They will be in sequential
+        % order.
+        if strcmpi(ch, previous), continue; else previous = ch; end
+        
+        % Find all declared id values for the section.
+        id     = char(setupstr(clean, ch, 'id'));
+        ideven = char(setupstr(clean, ch, 'id_even'));
+        idodd  = char(setupstr(clean, ch, 'id_odd'));        
+        
+        if ~isempty(id)
+            % ID is declared so calculate id_even and id_odd if required.
+            tmpid = eval(['[' id(1,:) ']']);
+            if ~isnumeric(tmpid), continue; end
+            if length(tmpid) == 1, continue; end
+            tmpid = sort(tmpid);
+                
+            %%%% Add the id_even and id_odd values here.....
+            for x = 1:length(clean)
+                % Find the correct section.
+                if ~strcmp(clean(x).k{1}, ch), continue; end
+                clean(x).v(end+1).k = 'id_even';
+                clean(x).v(end).v = num2str(tmpid(1));
+                clean(x).v(end+1).k = 'id_odd';
+                clean(x).v(end).v = num2str(tmpid(2));
+                break;
+            end
+        
+        elseif ~isempty(ideven) && ~isempty(idodd)
+            % Both id_even and id_odd required for calculating new value of
+            % "id".
+
+            %%%% Add id value here......
+            for x = 1:length(clean)
+                % Find the correct section.
+                if ~strcmp(clean(x).k{1}, ch), continue; end
+                clean(x).v(end+1).k = 'id';
+                clean(x).v(end).v = sprintf('%s,%s', ideven, idodd);
+                break;
+            end
+        end
+    end
+
+    % Purge channels that are not found within the address matrix.
+    for ch = setupstr( clean, '' )
+        if isempty(setupstr( clean, ch{1}, 'name' )), continue; end
+        if isempty(setupstr( clean, ch{1}, 'type' )), continue; end
+        id = setupstr( clean, ch{1}, 'id' );
+        if isempty(id), continue; end
+        
+        tmpid = eval(['[' id{1} ']']);
+        if isempty(find(tmpid(1) == matrix, 1))
+            for x = length(clean):-1:1
+                if isempty(find(strcmp(clean(x).k,ch), 1)), continue; end
+                % Remove channels that are not in the address matrix.
+                clean = [clean(1:x-1) clean(x+1:end)];
+            end
+        end
+    end
+    
+    % Change type "accel" to "piezo" for configuration files made before
+    % type "piezo" existed.  "coef[0|1]" used to differentiate between the
+    % two different types.
+    for ch = setupstr( clean, '', 'type', 'accel' )
+        coef0 = setupstr( clean, ch{1}, 'coef0' );
+        coef1 = setupstr( clean, ch{1}, 'coef1' );
+        if isempty(coef0) || isempty(coef1) || ~strcmp(coef0, '0') || ~strcmp(coef1, '1')
+            continue;
+        end
+        
+        for x = 1:length(clean)
+            if ~strcmp(clean(x).k{1},ch{1}), continue; end
+            
+            for xx = 1:length(clean(x).v)
+                if ~strcmp(clean(x).v(xx).k,'type'), continue; end
+                clean(x).v(xx).v = 'piezo';
+                break;
+            end
+            break;
+        end
+    end
+    
+end
 

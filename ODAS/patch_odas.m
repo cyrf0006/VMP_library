@@ -1,55 +1,57 @@
 %% patch_odas
-% Find bad buffers where the corruption can be fixed by a simple shift and
-% interpolation
+% Find and fix bad buffers in a RSI raw binary data file that can be
+% corrected by a simple shift and interpolation 
 %%
-% <latex>\index{Type A!patch\_odas}</latex>
+% <latex>\index{Functions!patch\_odas}</latex>
 %
 %%% Syntax
 %   [bad_record, fix_manually] = patch_odas( file )
 %
-% * [file] Name of data file with bad records.
+% * [file] Name of RSI raw binary data file with bad records.
 % * []
 % * [bad_record] Vector of indices to bad records.
 % * [fix_manually] Vector of indices to records that can not be fixed.
 %
 %%% Description
-% It sometimes happens that there is a communication failure with an 
-% instrument that results in some data loss.  This is indicated by 
+% It sometimes happens that a communication failure with an 
+% instrument results in some data loss. This is indicated by 
 % "Bad Buffer" messages during data acquisition and its
 % occurrence is flagged in the header of the effected record. The result is
 % some skewed data in the binary file that can lead to huge errors if the
 % skew is not fixed before applying the standard data processing tools.
 %
 % This function is the first step when attempting to correct bad records
-% in an ODAS binary data file.  It is able to correct small errors in a 
-% record without damaging the surrounding data.  It does this by locating 
+% in a RSI binary data file. It corrects small errors in a 
+% record without damaging the surrounding data, by locating 
 % the missing value and inserting a "best guess" approximation for that
-% value.
+% datum.
 %
-% This only works when damage to a data file is minor.  Should the damage 
-% be too extensive, the algorithm will not work.  In this scenario, the 
-% damaged record indices will be returned in the "fix_manually" vector.
+% This only works when damage to a data file is minor. If the damage in a
+% record is extensive, the algorithm leaves such records unchanged. The
+% indices to such records are returned in the $\texttt{fix\_manually}$
+% vector. 
 %
-% Records that can not be fixed with this function can be patched with the
-% "fix_bad_buffers" function.  Use of this "fix_bad_buffers" should be minimized
-% as it damages all channel data within the record.
+% Records that can not be fixed with this function can be fixed with the
+% $\texttt{fix\_bad\_buffers}$ function. The $\texttt{fix\_bad\_buffers}$
+% function replaces all data within a record using linear interpretation.
 %
 % Warning, this function changes the data file.  Make a back-up copy of
 % your data file before using this function.
 % 
 % @image @images/bad_buffers2 @Example data file with four bad records @An 
-% example of a binary data file that has 4 bad records [70 153 159 160]. 
-% This data is from an Expendable Microstructure Profiler (XMP) that was 
-% notorious for bad buffers in the early stages of its development.
+% example of a raw binary data file that has 4 bad records [70 153 159 160],
+% plotted using $\texttt{plot\_VMP}$. This data is from a prototype
+% Expendable Microstructure Profiler. The legend is a wish list of
+% channels. Only a subset exist in this instrument.
 %
 % @image @images/bad_buffers_fixed2 @Repaired data file @Plot of the 
-% previous figure after using patch_odas.  The data in records [153 159 160]
-% had skew corrected by inserting the missing datum.  Corrected records can
-% now be used for data processing.  However, record 70 was not fixed 
-% because it had too many missing data points.  The function 
+% previous figure after using patch_odas. The data in records [153 159 160]
+% had their skew corrected by inserting the missing datum. Corrected
+% records can now be used for data processing. However, record 70 was not
+% fixed because it had too many missing data points. The function
 % fix_bad_buffers can patch this record with interpolated data but must be
-% used carefully.  The resulting record should not be used for dissipation 
-% calculations.
+% used cautiously. Such records should not be used for dissipation
+% calculations. 
 %
 %%% Examples
 %
@@ -59,8 +61,9 @@
 %    >>     fix_bad_buffers( dataFile );
 %    >> end
 %
-% Repair a data file with bad buffers.  First repair files with patch_odas and 
-% then repair the remaining errors with fix_bad_buffers.
+% Repair a data file with bad buffers. First repair the file with
+% $\texttt{patch\_odas}$, and then with $\texttt{fix\_bad\_buffers}$, if
+% necessary. 
 
 % Version History
 %
@@ -78,6 +81,7 @@
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-06-18 (WID) using 'file_with_ext' for determining file name
 % * 2012-09-07 (WID) update of documentation for matlab publishing
+% * 2015-10-30 (RGL) Changed documentation
 
 function  [bad_record, fix_manually] = patch_odas(file)
 

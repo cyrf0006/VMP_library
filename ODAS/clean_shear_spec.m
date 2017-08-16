@@ -1,7 +1,7 @@
 %% clean_shear_spec
 % Remove acceleration contamination from all shear channels.
 %%
-% <latex>\index{Type A!clean\_shear\_spec}</latex>
+% <latex>\index{Functions!clean\_shear\_spec}</latex>
 %
 %%% Syntax
 %   [cleanUU, AA, UU, UA, F] = clean_shear_spec( A, U, nFFT, rate )
@@ -54,66 +54,87 @@
 % * 2012-07-11 (ILG) replaced csd_rolf and psd_rolf function calls with calls
 %                    to csd_odas.m; for loops take advantage of additional 
 %                    outputs available from csd_odas.m
+% * 2014-04-10 (RGL) Modified to use csd_matrix_odas function for the
+%   spectral calculations. Redundant fft calls are eliminated. Speed
+%   improvement is about a factor of 2.
+% * 2015-11-18 RGL, Documentation changes.
 
 function  [clean_UU, AA, UU, UA, F] = clean_shear_spec(A, U, n_fft, rate)
 
 % do some checking
-if ((length(A(:)) == 1) | (length(U(:)) == 1))
+if isscalar(A) || isscalar(U)
     error('Acceleration and shear matrices must contain vectors')
 end
-if (size(A,2) > size(A,1))
-    error('the vectors do not seem to go down the columns of the acceleration matrix')
-end
-if (size(U,2) > size(U,1))
-    error('The vectors do not seem to go down the columns of the shear matrix')
-end
+if isrow(A), A = A'; end % Force into column vector
+if isrow(U), U = U'; end 
 if (size(A,1)~=size(U,1))
     error('Acceleration and shear matrices must have the same number of rows')
 end
-if (size(A,1) <= 2*n_fft)
-    error('Your fft length is too long for the length of the vectors')
+if ~isscalar(n_fft) || n_fft<2
+    error('n_fft must be larger than 2.')
 end
-if (rate <= 0)
-    error('Sampling rate is negative')
+
+if (size(A,1) < 2*n_fft)
+    error('Vector lengths must be 2*n_fft or longer')
+end
+if ~isscalar(rate) || rate <= 0
+    error('Sampling rate must be positive scalar')
 end
 % end of checking
 
-% Pre-allocate shear matrices
-AA = zeros(size(A,2),size(A,2),n_fft/2+1);
-UU = zeros(size(U,2),size(U,2),n_fft/2+1);
-UA = zeros(size(U,2),size(A,2),n_fft/2+1);
-clean_UU = zeros(size(U,2),size(U,2),n_fft/2+1);
+method = 'parabolic';
 
-% Compute auto- and cross-spectra
-for k = 1:size(U,2)
-    % Shear-probe and acceleration cross-spectra, auto-spectra
+% if new = true, we use the new and very efficient csd_matrix_odas function instead 
+% of the csd_odas function. The improvement is about a factor of 2.
+new = true; 
+
+push = [2 3 1]; %The permutation 
+if new
+    [Cxy,F,Cxx,Cyy] = ...
+        csd_matrix_odas(U, A, n_fft, rate,[], n_fft/2, method);
+    UU = permute(Cxx, push);
+    UA = permute(Cxy, push);
+    AA = permute(Cyy, push);
+    
+else
+    % Pre-allocate shear matrices
+    AA = zeros(size(A,2),size(A,2),n_fft/2+1);
+    UU = zeros(size(U,2),size(U,2),n_fft/2+1);
+    UA = zeros(size(U,2),size(A,2),n_fft/2+1);
+    
+    
+    % Compute auto- and cross-spectra
+    for k = 1:size(U,2)
+        % Shear-probe and acceleration cross-spectra, auto-spectra
+        for m = 1:size(A,2)
+            [UA(k,m,:), F, UU(k,k,:), AA(m,m,:)] = csd_odas(U(:,k),...
+                A(:,m),n_fft,rate,[],n_fft/2,method);
+        end
+        % Shear probe cross-spectra
+        for n = k+1:size(U,2)
+            UU(k,n,:) = csd_odas(U(:,k),U(:,n),n_fft,rate,[],n_fft/2,method);
+            UU(n,k,:) = conj(UU(k,n,:));
+        end
+    end
+    % Acceleration cross-spectra
     for m = 1:size(A,2)
-        [UA(k,m,:), F, UU(k,k,:), AA(m,m,:)] = csd_odas(U(:,k),...
-            A(:,m),n_fft,rate,[],n_fft/2,'parabolic');
-    end
-    % Shear probe cross-spectra
-    for n = k+1:size(U,2)
-        UU(k,n,:) = csd_odas(U(:,k),U(:,n),n_fft,rate,[],n_fft/2,'parabolic');
-        UU(n,k,:) = conj(UU(k,n,:));
+        for n = m+1:size(A,2)
+            AA(m,n,:) = csd_odas(A(:,m), A(:,n), n_fft,rate,[],n_fft/2,method);
+            AA(n,m,:) = conj(AA(m,n,:));
+        end
     end
 end
-% Acceleration cross-spectra
-for m = 1:size(A,2)
-    for n = m+1:size(A,2)
-        AA(m,n,:) = csd_odas(A(:,m), A(:,n), n_fft,rate,[],n_fft/2,'parabolic');
-        AA(n,m,:) = conj(AA(m,n,:));
-    end
-end
-
 % Clean the shear spectra
+clean_UU = complex(zeros(size(UU)));
 for ii = 1:length(F)
    clean_UU (:,:,ii) = UU(:,:,ii) - (UA(:,:,ii)/AA(:,:,ii)) *conj(UA(:,:,ii)).';
 end
 
 % Remove extra dimensions
-clean_UU = squeeze(clean_UU);clean_UU = real(clean_UU);
-UU = squeeze(UU);
-AA = squeeze(AA); 
-UA = squeeze(UA);%UA = UA';
+clean_UU = squeeze(clean_UU);
+clean_UU = real(clean_UU); % probably not necessary
+UU       = squeeze(UU);
+AA       = squeeze(AA); 
+UA       = squeeze(UA);
 
    

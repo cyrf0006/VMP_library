@@ -1,31 +1,30 @@
 %% check_bad_buffers
 % Find bad buffers within a data file
 %%
-% <latex>\index{Type A!check\_bad\_buffers}</latex>
+% <latex>\index{Functions!check\_bad\_buffers}</latex>
 %
 %%% Syntax
 %   [badRecord] = check_bad_buffers( file )
 %
-% * [file] Name of file with or without the '.p' extension.
+% * [file] Name of data file with or without the '.p' extension.
 % * []
-% * [badRecords] Vector of bad record counts.
+% * [badRecords] Vector index to records with bad buffers.
 %
 %%% Description
-% Scan an ODAS binary data file for bad buffers.  Communication problems can 
-% sometimes cause the data acquisition software to drop data.  These events are 
-% detected and recorded within the data acquisition log file.  The header in the
-% cooresponding data file is also flagged.
+% Scan a RSI raw binary data file for bad buffers. Communication problems can 
+% sometimes cause the data acquisition software to drop data. These events are 
+% detected and recorded within the data acquisition log file. The header in the
+% corresponding data file is also flagged.
 %
-% This fuction searches the headers within a ODAS binary data file for the bad 
-% buffer flag.  The indexes of these records are collected and returned within 
-% the BadRecord value.
+% This fuction searches the headers within a RSI binary data file for the bad 
+% buffer flag. The indexes of these records are returned in BadRecord.
 %
 %%% Examples
 %
 %    >> badIndexes = check_bad_buffers( 'my_data_file.p' )
 %
-% Search for bad buffers within the file 'my_data_file.p'.  If the resulting
-% 'badIndexes' is empty, no bad buffers were found.
+% Search for bad buffers within the file $\texttt{my\_data\_file.p}$. If
+% $\texttt{badIndexes}$ is empty, no bad buffers were found.
 
 % Version History
 %
@@ -34,14 +33,16 @@
 % * 2012-04-30 (WID) comments added to allow for Matlab publishing
 % * 2012-07-19 (WID) fix of cast and endian problems
 % * 2012-08-31 (WID) use of file_with_ext function
-% * 2012-12-11 WID Documentation update.
+% * 2012-12-11 (WID) Documentation update.
+% * 2012-10-27 (RGL) Document corrections.
+% * 2012-11-18 (RGL) Document corrections.
 
 function  [bad_records] = check_bad_buffers(file)
 
 if nargin < 1, file = get_latest_file; end
 
 error_str = ['File "' file '" not found.  Only data files (.p) are valid.'];
-[P N E file] = file_with_ext( file, {'.p', '.P', ''}, error_str );
+[P,N,E,file] = file_with_ext( file, {'.p', '.P', ''}, error_str );
 
 [fid, error_message] = fopen_odas(file,'r+');
 if error_message, warning(error_message); end

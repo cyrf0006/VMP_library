@@ -1,7 +1,7 @@
 %% adis
 % Convert inclinometer data into meaningful raw counts
 %%
-% <latex>\index{Type A!adis}</latex>
+% <latex>\index{Functions!adis}</latex>
 %
 %%% Syntax
 %   [xOut, oldFlag, errorFlag] = adis( xIn )

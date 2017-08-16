@@ -1,17 +1,17 @@
 %% save_odas
-% More efficient way to [re]write a vector in an existing mat file. 
+% More efficient way to [re]write a vector in an existing mat-file. 
 %%
-% <latex>\index{Type A!save\_odas}</latex>
+% <latex>\index{Functions!save\_odas}</latex>
 %
 %%% Syntax
 %
 %   success_flag = save_odas(file_name, vector_name, vector)
 %
-% * [file_name] destination .mat file into which the vector should be saved
-% * [vector_name] name of the vector being saved
-% * [vector] the actual vector that is saved
+% * [file_name] Destination mat-file into which the vector should be saved.
+% * [vector_name] Name of the vector being saved.
+% * [vector] Vector to save.
 % * []
-% * [success_flag] result of operation, see following table
+% * [success_flag] Result of operation, see following table:
 %
 % Possible values for success_flag:
 %
@@ -23,49 +23,28 @@
 %       being saved.  The .mat file was not modified.
 %
 %%% Description
+% This function greatly reduces the time required to save a modified real
+% vector back into a mat-file. 
 %
-% This function was written to spare this author recurring frustration
-% with the Matlab 'save' command. The creators of Matlab have certainly done
-% a marvelous service to the scientific and engineering community. However,
-% it appears that they never envisioned that users might want to work with
-% large data files and that they might want to update vectors in such a file.
-% If you want to append a vector to an existing mat-file, then this
-% operation proceeds quite quickly because the vector is simply placed into
-% the back of the file. However, if you have loaded a vector, changed its
-% value but not its length, and try to update your file by appending this
-% modified vector into the mat-file, then Matlab ties itself into a
-% multi-dimensional knot. It first copies the entire file into a temporary
-% file, empties the original file, copies the vectors and variables
-% one-by-one, replaces the target vector when its turn arrives, and then
-% continues to copy vectors and variables one-by-one. Microstructure profiles
-% tend to have vectors of about 10e6 in size, and re-saving a single vector
-% can take up to 2 minutes!. Enter save_odas. This function examines the
-% mat-file to see if it already contains a vector with the same name as the one
-% that is to be saved. If it does not find a vector of the same name, then it
-% simply issues the save  append command.  If it does find a vector with the
-% same name, then it checks to see if it has the same length as the one that is
-% to be saved. If the lengths are equal, then it uses the binary write command
-% to over-write the vector in the mat-file directly. Updating a vector of
-% length of about 10e6 takes approx. 1 second. Can you believe it? Can you
-% imagine what this has done for my blood pressure?
+% The basic idea of this function is that the entire data file does not
+% have to be rewritten when the vector that you are saving has the same
+% name and length as one that is already in your mat-file. 
 %
-% This function only works for mat-files saved as version 6. You do this by 
-% using the v6 flag with the save command. This function, of course does this 
-% for you automatically. MathWorks has come out with 2 newer versions of its 
-% mat-files, but RSI has no knowledge of the internal structure of these 
-% newer-version files.
+%%% NOTES:
 %
-% NOTE: This function works only with real vectors.
+% # This function works only with real vectors.
+% # This function only works with MATLAB Version 5 (save -v6) or earlier
+% file formats. Newer file formats are compressed and can not take
+% advantage of this shortcut.
 %
-%%% Examples
+%%% Example
 %
-%    >> vector = 1:1000000;
-%    >> save( 'my_big_vector.mat', 'vector' );
-%    >> vector(1) = -1;
-%    >> save_odas( 'my_big_vector.mat', 'vector', vector );
+%    >> load  my_file  my_vector
+%    >> my_vector  =  5 * my_vector;
+%    >> save_odas( 'my_file.mat',  'my_vector',  my_vector);
 %
-% First creates a .mat file and saves a large vector.  The vector is then 
-% modified and the .mat file updated.
+% Extract one, of possibly many, long vectors from a mat-file. Modify it
+% without changing its length. Then save it. 
 
 % Version History
 % * 2000-05-04 (RGL) initial

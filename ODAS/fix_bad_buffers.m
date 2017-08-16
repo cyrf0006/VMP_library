@@ -1,12 +1,12 @@
 %% fix_bad_buffers
-% Fix bad records in ODAS data file
+% Fix badly corrupted records in a RSI raw binary data file
 %%
-% <latex>\index{Type A!fix\_bad\_buffers}</latex>
+% <latex>\index{Functions!fix\_bad\_buffers}</latex>
 %
 %%% Syntax
 %   [badRecords, chop, truncate] = fix_bad_buffers( fileName )
 %
-% * [fileName] Full name of a binary odas data file including the '.p' extension.
+% * [fileName] Full name of a RSI raw binary data file including the '.p' extension.
 % * []
 % * [badRecords] Vector of the record numbers of bad records that were detected 
 %         and fixed in the file 'fileName' after the fixing.  The record numbers
@@ -17,7 +17,7 @@
 %         file can not be opened.
 %
 %%% Description
-% Repair bad records in ODAS data files. It sometimes happens that there is a 
+% Repair bad records in RSI raw binay data files. It sometimes happens that there is a 
 % communication failure with an instrument. This is indicated by the 'Bad Buffer'
 % message during data acquisition and its occurrence is flagged in the header of
 % the affected record. The result is some skewed data in the binary file that can
@@ -25,34 +25,39 @@
 %
 % When errors are detected, this function replaces the entire record with 
 % interpolated data.  All significant data in the record will be lost but the
-% resulting record can still be graphed without disrupting neighboring records.
-% If the file ends with a bad record(s) then those records are truncated.  In 
-% addition, starting records are truncated if they have bad record(s). If a
-% bad record has already been fixed it leaves that record unchanged.
+% resulting record can still be graphed without disrupting neighboring
+% records. However, because there will be a time gap between a record with
+% a bad buffer and the next record, the deconvolution function may produce
+% erroneous results. The error will be transitory and decay with an
+% e-folding time equal to the gain of the differentiator used to 
+% pre-emphasize a signal.
 %
-% (see also patch_odas.m)
+% If a file ends with bad records, those records are truncated. If a
+% file starts with bad records, those records are also truncated. If a
+% bad record has already been fixed successfuly using
+% $\texttt{patch\_odas}$, the record is not changed. 
 %
-% IMPORTANT: Bad buffers should first be fixed using patch_odas because it 
-% perserves more of the original data. Should this fail, fix_bad_buffers can be 
-% used to patch the data file.
+% IMPORTANT: Bad buffers should first be fixed using $\texttt{patch\_odas}$
+% because it preserves more of the original data. Should this fail,
+% $\texttt{fix\_bad\_buffers}$ can be used to patch the data file.
 %
-% @image @images/bad_buffers @Corrupted ODAS binary data file @that has 
-% 'Bad Buffers' from about 45 to 48 seconds.  This sample is from an Expendable 
-% Microstructure Profiler (XMP) which was notorious for communication failures 
-% in the early stages of its development.  Records 45 through 48 are skewed and 
-% appear garbled as a result of communication failures.
+% @image @images/bad_buffers @Corrupted ODAS binary data file @A corrupted
+% data file that has 'Bad Buffers' from about 45 to 48 seconds. This sample
+% is from an Expendable Microstructure Profiler (XMP) which was notorious
+% for communication failuresn in the early stages of its development.
+% Records 45 through 48 are skewed and appear garbled as a result of
+% communication failures. 
 %
-% @image @images/bad_buffers_fixed @Corrupted ODAS binary data file after being
-% repaired. @Same data as the previous figure after being processed by patch_odas.m
-% and then by fix_bad_buffers.m. Three records have been replaced with interpolated
-% data. Interpolated data should not be used for critical operations. However, the
-% pressure records (black, blue lines) are now contiguous and can be processed 
-% to get an accurate record of depth.
+% @image @images/bad_buffers_fixed @Corrupted ODAS binary data file after
+% being repaired. @Same data as in the previous figure after being
+% processed by $\texttt{patch\_odas.m}$ and then by
+% $\texttt{fix\_bad\_buffers.m}$. Three records have been replaced with
+% interpolated data. Interpolated data should be used cautiously.
 %
-% This function will make a backup copy, but the user is advised to always make 
-% a backup of the data file in a secure directory before using this function. 
-% This function should be called *after* patch_odas because less data is lost if
-% patch_odas is run first.
+% This function will make a backup copy, but the user is advised to always
+% make a backup of the data file in a secure directory before using this
+% function. This function should be called *after* $\texttt{patch\_odas}$
+% because less data is lost if $\texttt{patch\_odas}$ is run first.
 
 % Version History
 %
@@ -65,6 +70,9 @@
 % * 2012-09-03 WID added check to prevent overwriting of backup file
 % * 2012-11-05 WID documentation update
 % * 2013-02-26 WID merged changes from Rolf
+% * 2013-07-30 WID fix of s/file_name/filename/g bug
+% * 2015-10-28 (RGL) Documentation changes.
+% * 2015-11-18 (RGL) Documentation changes.
 
 function [bad_records, chop, truncate] = fix_bad_buffers(file)
 
@@ -89,7 +97,7 @@ if ~success, disp(['unable to back up ' filename]); return, end
 if ~isempty(error_message), disp(error_message); end
 if (fid < 3);
     chop = -1; truncate = -1; % these can be used to check for error conditions
-%    error(['Could not open input file = ' file_name']);
+%    error(['Could not open input file = ' filename']);
     return
 end
 fseek(fid,0,'bof'); % put pointer at the beginning of file
@@ -224,13 +232,13 @@ if (~isempty(index))
 
     fclose(fid);
     
-    fid2 = fopen(file_name ,'w+', file_endian); % Open and truncate
+    fid2 = fopen(filename ,'w+', file_endian); % Open and truncate
     if ~isempty(error_message)
         error(error_message);
     end
     
     if fid2 < 3
-        error('unable to open file %s for writing', file_name);
+        error('unable to open file %s for writing', filename);
     end
     fwrite(fid2, junk); % write everything except last records
     fclose(fid2);
@@ -241,10 +249,10 @@ if (~isempty(index))
     truncate = truncate_record; % save for return value of this function
     
     if isempty(bad_records)
-%        ['Got all bad records by truncating the tail of the file ' file_name]
+%        ['Got all bad records by truncating the tail of the file ' filename]
         return
     end
-    [fid, error_message] = fopen_odas(file_name ,'r+'); % open for rw and no truncate
+    [fid, error_message] = fopen_odas(filename ,'r+'); % open for rw and no truncate
     if ~isempty(error_message), error_message, end;
 end
 
@@ -268,18 +276,18 @@ if (~isempty(index))
     junk = fread(fid, inf); % read all
     fclose(fid);
 
-    [fid2, error_message] = fopen(file_name,'w', file_endian); % Open and truncate
+    [fid2, error_message] = fopen(filename,'w', file_endian); % Open and truncate
     if ~isempty(error_message), error_message, end;
     
     if fid2 < 3
-        error('unable to open file %s for writing', file_name);
+        error('unable to open file %s for writing', filename);
     end
 
     fwrite(fid2, junk(1:first_record_length)); % write first record which contains ini string
     fwrite(fid2, junk((chop + 1)*record_size + 1 : end), 'short'); % write all except first few records
     fclose(fid2);
 
-    [fid, error_message] = fopen_odas(file_name,'r+');
+    [fid, error_message] = fopen_odas(filename,'r+');
     if ~isempty(error_message), error_message, end;
 %    ['chopped off the first ' num2str(bad_records(chop)) ' from file']
 
@@ -302,7 +310,7 @@ if (~isempty(index))
     end
     bad_records = find(header(:,16) ~= 0);% index to all failed special character checks
     if (isempty(bad_records))
-%        ['NO bad records left in file ' file_name ' after chopping front-end of file.']
+%        ['NO bad records left in file ' filename ' after chopping front-end of file.']
         fclose('all');
         return
     end

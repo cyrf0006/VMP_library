@@ -1,31 +1,25 @@
 %% show_P
-% Extract and show the average pressure from an ODAS data file.
+% Extract the record-average pressure from a RSI raw binary data file.
 %%
-% <latex>\index{Type B!show\_P}</latex>
+% <latex>\index{Functions!show\_P}</latex>
 %
 %%% Syntax
 %
 %   [P, record] = show_P( fileName )
 %
-% * [fileName] - String containing the name of the ODAS binary data file.
+% * [fileName] - String containing the name of a RSI raw binary data file.
 % * []
-% * [P] - Vector of the record-average pressure in physical units.
+% * [P] - Vector of the record-average pressure in units of dbar.
 % * [record] - Vector of the record numbers corresponding to P.
 %
 %%% Description
 %
-% Calculate the record-average pressure from a binary ODAS data file. This 
-% function can be used to identify which portions of a data file contain data
-% that is of interest.  One can then decimate the data file into smaller files 
-% that contain those specific portions of data.
-%
-% For this function to work, the pressure channel address must be present in the
-% address matrix.  The configuration file must also contain the appropriate 
-% coefficients for converting raw pressure values into physical units.
-%
-% For legacy ODAS (prior to ODAS v6 data files), the user needs to supply the 
-% setup file that was used during data acquisition.  Newer data files can be 
-% processed directly if they were obtained using a valid configuration file.
+% Calculate the record-average pressure from a RSI raw binary data file.
+% This function is used to quickly glimpse the pressure-time history of an
+% instrument. The pressure channel address must be present in the address
+% $\texttt{[matrix]}$ and there must be a $\texttt{[channel]}$ section
+% containing the coefficients for converting raw pressure data into
+% physical units.
 %
 % The returned vectors are suitable for plotting the pressure history in a
 % data file.
@@ -35,10 +29,14 @@
 %     >> [P records] = show_P( 'my_data_file.p' );
 %     >> plot(P); set(gca, 'YDir', 'reverse'); grid on;
 %
-% Generate a pressure (depth) vs. record (time) line plot.  This plot allows one
-% to visually identify the sections of a data file they are interested in.  The
-% decimate function can then be used to crop the data file to the portions that
-% are of interest.
+% Generate a pressure (depth) vs. record (time) line plot to reveal the
+% descents and ascents of your instrument.
+%
+% Use
+%
+%     >> plot(diff(P)); grid on;
+%
+% to see the rate-of-change of preesure (vertical velocity).
 
 % *Version History:*
 %
@@ -47,6 +45,8 @@
 % * 2012-04-11 (WID) changed inifile_with_instring calls to setupstr
 % * 2012-10-24 (WID) documentation update
 % * 2013-02-26 (WID) fix name of pressure channel with setupstr
+% * 2013-06-29 (WID) removed references to XMP instruments
+% * 2015-11-02 (RGL) Documentation updates
 
 function [P, record] = show_P(fileName)
 
@@ -93,8 +93,6 @@ data_size = record_size-header_size;
 
 header_version = bitshift(junk(header_version_i), -8) + bitand(junk(header_version_i), 255) /1000;
 
-isXMP = 0;
-
 if (header_version >=6)
     setupfile_size = junk(setupfile_size_i);
 
@@ -103,48 +101,15 @@ if (header_version >=6)
         error('incorrect setup file size extracted from first data record');
     end
 
-    setupfilestr = char(fread(fid, setupfile_size))';
-
     first_record_size = header_size * 2 + setupfile_size;
-
-    instrument_serial_number_section = [];
-
-    cfg = setupstr(setupfilestr);
-
-    if ~isempty(setupstr(cfg, '', 'xmp'))
-        isXMP = 1;
-
-        index_to_serial_number = find(address_matrix' == 254)
-        bad_buffer_flag_i = 15;
-
-        if isempty(index_to_serial_number)
-            error('channel number 254 is not in address matrix');
-        end
-
-        tmphbuf =fread(fid,header_size,'ushort');
-        tmpdbuf =fread(fid,data_size,'ushort');
-
-        while tmphbuf(bad_buffer_flag_i) == 1
-            display('skipping bad buffer...');
-            tmphbuf =fread(fid,header_size,'ushort');
-            tmpdbuf =fread(fid,data_size,'ushort');
-        end
-
-        scan_length = length(address_matrix)
-        tmpdbuf = reshape(tmpdbuf,scan_length,data_size/scan_length);
-
-        instrument_serial_number_section = ['xmp_' num2str(tmpdbuf(index_to_serial_number),'%05d')]
-    end
+    setupfilestr = char(fread(fid, setupfile_size))';
 else
     first_record_size = record_size*2;
 end
 
-
-
 fseek(fid, 0, 'eof'); %move to end of file
 length_in_bytes = ftell(fid);
 total_records = floor((length_in_bytes - first_record_size) / (record_size*2)); % use floor in case their is a rundat the end.
-
 
 P = zeros(total_records,1); record = P; % pre-assign vectors
 
@@ -160,7 +125,7 @@ end
 
 % Now convert into physical units.
 if header_version >= 6
-    P = convert_odas(P,'P', 'string', setupfilestr, header_version, instrument_serial_number_section);
+    P = convert_odas(P,'P', 'string', setupfilestr, header_version);
 else
     P = convert_odas(P,'pres','file','setup.txt');
 end

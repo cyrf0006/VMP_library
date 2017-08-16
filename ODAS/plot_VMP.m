@@ -1,15 +1,19 @@
 %% plot_VMP
 % Simple real-time plots of raw data collected with a VMP
 %%
-% <latex>\index{Type A!plot\_VMP}</latex>
+% <latex>\index{Functions!plot\_VMP}</latex>
 %
 %%% Syntax
 %   plot_VMP( fileName )
 %
 % * [fileName] name of the data file to display
 %
-%%% Description
+%%% WARNING
+% This function is very old and does not make use of modern data files.  It
+% is included for users who already use the function and is not recommended
+% for new users.
 %
+%%% Description
 % Provides a simple but effective preview of the data from a vertical 
 % profile.  Plotted on a time vs count graph, the data forms descending 
 % traces where each trace represents a channel.  Visualizing the data in 
@@ -44,8 +48,9 @@
 %    Ay_scale        = 1 ;    Ay_offset         =  -25000;
 %                Continued in function....
 %
-% @image @images/plot_vmp @Example output from plot_VMP.  A detailed 
-% explanation of the plot is found within the function description.
+% @image @images/plot_vmp @Example output from $\texttt{plot\_VMP}$.
+% @Example output from $\texttt{plot\_VMP}$. A detailed explanation of the
+% plot is found within the function description. 
 %
 % The example plot shows the dark-blue pressure trace on the left side of 
 % the figure.  The pre-emphasized pressure trace is blue and is next to the
@@ -66,6 +71,11 @@
 % view of data downloaded from an internally recording instrument. Data 
 % courtesy of Manuel Figueroa.
 %
+% The function shows only the minimum and maximum of consecutive segments
+% of the data, in order to plot the data rapidly. The length of the
+% segments is based on the pixel resolution of your screen. What is shown
+% is an accurate representation of the data. However, the zoom-in function
+% will show details that are not real.
 
 % *Version History:*
 %
@@ -97,6 +107,9 @@
 % * 2012-09-09 WID updated documentation for matlab publishing.
 % * 2013-01-04 WID changed T1_dT1 to C1_dC1 - some instruments might require
 %                  T2_dT2
+% * 2013-03-01 WID include performance improvements and decimate fix.
+% * 2013-06-29 WID real-time instrument fix - indexing byte/word problem
+% * 2015-10-31 RGL. Changed documentation.
 
 
 function plot_VMP(fileName)
@@ -246,8 +259,8 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 hF=figure(1);
-set(hF,'units',figureUnits,'position',figurePos,'userdata','VMP_fig','renderer','openGL');
-%set(hF,'units',figureUnits,'position',figurePos,'userdata','VMP_fig');
+%set(hF,'units',figureUnits,'position',figurePos,'userdata','VMP_fig','renderer','openGL');
+set(hF,'units',figureUnits,'position',figurePos,'userdata','VMP_fig');
 clf
 h =axes('position',axesPos);
 
@@ -259,18 +272,6 @@ vars = [fast_vars slow_vars];  % all plot entries as one list
 for var = vars,
     if length(var.name) > max_length, max_length = length(var.name); end
 end
-
-% % Sort the entries based on the offset value
-% keep_going = 1;
-% while keep_going,
-%     keep_going = 0;
-%     for i = 1 : length(vars)-1,
-%         if vars(i).offset > vars(i+1).offset,
-%             tmp = vars(i); vars(i) = vars(i+1); vars(i+1) = tmp;
-%             keep_going = 1;
-%         end
-%     end
-% end
 
 % Generate a name and add to the legend.
 leg_text = {};
@@ -295,13 +296,18 @@ if status==-1
     error(['Error trying to move to the beginning of the first real data record: ' ferror(fid)]);
 end
 
-d_buffer        = ones (data_record_size,1)*NaN;
-% h_buffer        = ones (header_size,1)*NaN;
+buffer        = ones(data_record_size+header_size,1)*NaN;
 
-we_are_not_done = 1;    % flag for stopping the reading and plotting
 fast_index = 1;
 slow_index = 1;
 record_counter = 0;
+
+sset = 0;
+fset = 0;
+lasttime = [0,0,0,0,0,0];    % Empty time
+refresh_count = 1;
+overflow_count = 0;
+draw_refresh_count = 0;
 
 figure(1); cla
 ylims = [0 max_plot_length_in_records];
@@ -309,121 +315,134 @@ set(h,'clipping', 'off','ylim',ylims,'ydir','rev','xlim',xlims);
 set(h,'ColorOrder',cmap);
 ylabel('\it t \rm [s]','fontsize',11); 
 title([strrep(fileName,'_','\_') ';  ' date_string ' UT'],'fontsize',12,'fontweight','bold'); hold on; grid on
-new_plot=1;
 Y_all = zeros(floor(max_length_of_fast_channels/decimate_fast),length(fast_vars))*NaN;  % Initialize plotting matrices
 t_all = zeros(floor(max_length_of_fast_channels/decimate_fast),1)*NaN;
 Y2_all = zeros(floor(max_length_of_slow_channels/decimate_slow),length(slow_vars))*NaN;
 t2_all = zeros(floor(max_length_of_slow_channels/decimate_slow),1)*NaN;
-while (we_are_not_done)
-    [h_buffer, count] = fread (fid, header_size,'short');
-    if count ~= header_size, % we have a read failure.
-        fseek(fid,-count,'cof');% Move back to where we were in the file.
-        pause(2*record_duration);% Pause for the duration of 2 records and try again. 
 
-        [h_buffer, count] = fread (fid, header_size,'short');
-        if count ~= header_size, % we have the second read failure.
-            fseek(fid,-count,'cof');% Move back to where we were in the file.
-            pause(2*record_duration);% Pause for the duration of 2 records and try again.
-            
-                [h_buffer, count] = fread (fid, header_size,'short');
-                if count ~= header_size, % we have the third read failure. 
-                    % This must be the hard end of file. Give up on this file.
-                    we_are_not_done = 0;
-                    disp('Pause for header exceeded the durtion of 4 records')%
-                end
-        end
-    end
-
-    if (we_are_not_done)
-        [d_buffer, count] = fread (fid, data_record_size,'short'); %Read a record of data
-        if count ~= data_record_size;
-            fseek(fid,-count,'cof');% Move back to where we were in the file.
-            pause(2*record_duration);% Pause for 2 record durations and try again.
-
-            [d_buffer, count] = fread (fid, data_record_size,'short'); 
-            if count ~= data_record_size, 
-                 % Second read attempt failed. We have a serious error because
-                 % the header was read but there is no data after it.                 
-                we_are_not_done = 0;
-                disp('No data behind the header even after pausing for duration of 2 records') 
-            end
-        end
-        record_counter = record_counter + 1;
-    end
-
-    if (we_are_not_done)
-        [fast_data_all, slow_data_all] = demultiplex (d_buffer, h_buffer); % Put data into matrices
-        for ii=1:length(fast_vars)
-%            junk = eval(['fast_data_all(:,' fast_vars{ii} '_ch)*' fast_vars{ii} '_scale +' fast_vars{ii} '_offset;']);
-            junk = fast_data_all(:,fast_vars(ii).ch) * fast_vars(ii).scale + fast_vars(ii).offset;
-            if ~isempty(junk)
-                fast_data(:,ii) = junk;
-            else
-                fast_data(:,ii) = ones(size(fast_data_all,1),1)*NaN;
-            end
-        end
-       for ii=1:length(slow_vars)
-%            junk = eval(['slow_data_all(:,' slow_vars{ii} '_ch)*' slow_vars{ii} '_scale +' slow_vars{ii} '_offset;']);
-            junk = slow_data_all(:,slow_vars(ii).ch) * slow_vars(ii).scale + slow_vars(ii).offset;
-            if ~isempty(junk)
-                junk = junk(:,1); % in case of multiple samples in slow channels
-                slow_data(:,ii) = junk;
-            else
-                slow_data(:,ii) = ones(size(slow_data_all,1),1)*NaN;
-            end
-        end
-        clear fast_data_all slow_data_all
-        ii=fast_index:fast_index+fast_points_per_record - 1;
-        ii2=slow_index:slow_index+slow_points_per_record - 1;
-        fast_index = fast_index + fast_points_per_record;
-        slow_index = slow_index + slow_points_per_record;
-        Y = decimate_me(fast_data,decimate_fast); % reduce the number of points
-        t = decimate_me (t_f(ii),decimate_fast); % also for time vector
-        Y2 = decimate_me(slow_data,decimate_slow);
-        t2=decimate_me(t_s(ii2),decimate_slow);
-        ii = (record_counter-1)*fast_points_per_record/decimate_fast+1:record_counter*fast_points_per_record/decimate_fast;
-        Y_all(ii,:)=Y; t_all(ii)=t;             % Add data to the plotting matrices
-        ii = (record_counter-1)*slow_points_per_record/decimate_slow+1:record_counter*slow_points_per_record/decimate_slow;
-        Y2_all(ii,:)=Y2; t2_all(ii)=t2;
- 
-        % setup timer to limit our graphing commands to 1 per second.
-        if ~exist('lasttime', 'var'),
-            lasttime = clock - 2;         % Set to trigger on the first loop
-            draw_refresh_count = 0;
-        end
-
-%        if ~isempty(findobj('userdata','VMP_fig')), % Update the plot
-            if record_counter==1, hh1=plot(Y_all,t_all); hh2=plot(Y2_all,t2_all);
-            else
-              if draw_refresh_count == 0 && etime(clock, lasttime) > 1,
-                for ii=1:size(Y_all,2), set(hh1(ii),'xdata',Y_all(:,ii),'ydata',t_all); end
-                for ii=1:size(Y2_all,2), set(hh2(ii),'xdata',Y2_all(:,ii),'ydata',t2_all); end
-              end
-            end
-%        else we_are_not_done=0; return; 
-%        end
+while 1
+    % Set attept_reads to 4 records
+    attempt_reads = 4*round(4*record_duration);
+    
+    while attempt_reads,
+        % Read a record - header + data
+        [buffer, count] = fread(fid, data_record_size+header_size, 'short');
         
-        if new_plot         % Only re-create the legend when starting a new plot
-            l = legend(leg_text,-1);
-            set(l, 'FontName', 'Courier');
-            new_plot=0;
+        % Read successful, break out of loop.
+        if count == data_record_size+header_size, break; end
+
+        % If plotting a previously collected file, we have reached the end
+        % of file and should plot and diplay the data.  Place in catch block
+        % because variables might not exist yet.
+        try
+            for ii=1:size(Y_all,2), set(hh1(ii),'xdata',Y_all(:,ii),'ydata',t_all); end
+            for ii=1:size(Y2_all,2), set(hh2(ii),'xdata',Y2_all(:,ii),'ydata',t2_all); end
+            drawnow
+        catch
         end
         
-        if draw_refresh_count == 0,
-            draw_refresh_count = 20;
-            if etime(clock, lasttime) > 1,
-                lasttime = clock;
-                drawnow
-            end
+        % must be connected to a real-time instrument, so set the display
+        % to refresh on every record.
+        refresh_count = 0;
+        
+        attempt_reads = attempt_reads - 1;
+        fseek(fid,-(count*2),'cof');% Move back to where we were in the file.
+        pause(1/4);% Pause for 1/4 second.
+    end
+    
+    % If set to 0, we have timed out.  Display an error message.  This is where
+    % we exit the main loop.
+    if ~attempt_reads
+        disp('Pause for header + data exceeded the durtion of 4 records');
+        break;
+    end
+    
+    record_counter = record_counter + 1;
+    
+    [fast_data_all, slow_data_all] = demultiplex(buffer(header_size+1:end), ...
+                                                 buffer(1:header_size)); % Put data into matrices
+    for ii=1:length(fast_vars)
+        junk = fast_data_all(:,fast_vars(ii).ch) * fast_vars(ii).scale + fast_vars(ii).offset;
+        if ~isempty(junk)
+            fast_data(:,ii) = junk;
         else
-            draw_refresh_count = draw_refresh_count - 1;
+            fast_data(:,ii) = ones(size(fast_data_all,1),1)*NaN;
         end
-    else
-        % Draw the remaining data from the buffer.
+    end
+    for ii=1:length(slow_vars)
+        junk = slow_data_all(:,slow_vars(ii).ch) * slow_vars(ii).scale + slow_vars(ii).offset;
+        if ~isempty(junk)
+            junk = junk(:,1); % in case of multiple samples in slow channels
+            slow_data(:,ii) = junk;
+        else
+            slow_data(:,ii) = ones(size(slow_data_all,1),1)*NaN;
+        end
+    end
+    clear fast_data_all slow_data_all
+    ii=fast_index:fast_index+fast_points_per_record - 1;
+    ii2=slow_index:slow_index+slow_points_per_record - 1;
+    fast_index = fast_index + fast_points_per_record;
+    slow_index = slow_index + slow_points_per_record;
+    Y = decimate_me(fast_data,decimate_fast); % reduce the number of points
+    t = decimate_me (t_f(ii),decimate_fast); % also for time vector
+    Y2 = decimate_me(slow_data,decimate_slow);
+    t2 = decimate_me(t_s(ii2),decimate_slow);
+    
+% Uncomment the following to disable the decimation of data.  This slows
+% things down but provides real results.
+%    Y  = fast_data;
+%    t  = t_f(ii);
+%    Y2 = slow_data;
+%    t2 = t_s(ii2);
+
+    fset = fset(end)+1:fset(end) + size(Y,1);
+    sset = sset(end)+1:sset(end) + size(Y2,1);
+    Y_all(fset,:)=Y;   t_all(fset)=t;     % Add data to the plotting matrices
+    Y2_all(sset,:)=Y2; t2_all(sset)=t2;
+        
+    % On the first record, draw the plots and add the legend.
+    if record_counter == 1
+        hh1=plot(Y_all,t_all);
+        hh2=plot(Y2_all,t2_all);
+        l = legend(leg_text,-1);
+        set(l, 'FontName', 'Courier');
+    end
+    
+    % To minimize the work, only draw the plot occasionally.  Two methods are
+    % used here, the draw_refresh_count and "clock" function.  The "clock"
+    % function is slow so draw_refresh_count is used to minimize how many times
+    % it is called.
+    draw_refresh_count = draw_refresh_count - 1;
+    if draw_refresh_count <= 0,
+        draw_refresh_count = refresh_count;
+        overflow_count = overflow_count + 1;
+        tmp_time = clock;
+        if etime(tmp_time, lasttime) > 0.5,      % Refresh 2 times a second.
+            lasttime = tmp_time;
+            % Check the overflow_count - use this to tune the refresh_count variable.
+            % The optimal value will differ depending on comptuer speed.
+            if overflow_count > 4,
+                refresh_count = refresh_count * overflow_count/2;
+                disp( [' OPTIMIZE: New refresh_count value: ' num2str(refresh_count)]);
+            end
+            overflow_count = 0;
+
+            % Set the data to be plotted and then plot the data.
+            for ii=1:size(Y_all,2), set(hh1(ii),'xdata',Y_all(:,ii),'ydata',t_all); end
+            for ii=1:size(Y2_all,2), set(hh2(ii),'xdata',Y2_all(:,ii),'ydata',t2_all); end
+            drawnow
+        end
+    end
+    
+    if record_counter == max_plot_length_in_records         % When done a plot, clean up the figure and prepare to plot some more
+        % At the end of a screen, plot all remaining data and pause for a
+        % second.
         for ii=1:size(Y_all,2), set(hh1(ii),'xdata',Y_all(:,ii),'ydata',t_all); end
         for ii=1:size(Y2_all,2), set(hh2(ii),'xdata',Y2_all(:,ii),'ydata',t2_all); end
-    end
-    if record_counter == max_plot_length_in_records         % When done a plot, clean up the figure and prepare to plot some more
+        drawnow
+        overflow_count = 0;
+        pause(1);
+        
         figure(1); cla
         Y_all(:,:)=NaN; t_all(:,:)=NaN; Y2_all(:,:)=NaN; t2_all(:,:)=NaN;
         ylims = ylims+max_plot_length_in_records;
@@ -450,17 +469,29 @@ function Y = decimate_me(X,R)
 % X and Y have the same number of columns 
 % 
 % RGL Aug. 2004
+% WID 2013-03-01  % Now works when R not a power of 2
 
 R = floor(abs(R));% In case R is not a positive integer
 
 % decimate vectors by factor R
 len = size(X,1);
 
-X = X(1:R*floor(len/R),:); % truncate, if necessary
-len = size(X,1); % The (possibly) truncated number of rows of X
+% Break matrix into row segments
+seg = 1:R*2:len;
 
-junk = reshape(X, 2*R, len/(2*R), size(X,2));
-Y = reshape([min(junk); max(junk)], len/R, size(X,2)); 
+% If there is data at the end, use it too.  Now if R > size(X,1) it still works.
+if seg(end) ~= len,
+    seg(end+1) = len;
+end
+
+% Allocate matrix for result
+Y = zeros(2*(length(seg)-1),size(X,2));
+
+% Iterate over segments, adding the min and max values to the result.
+for i = 1:length(seg)-1,
+    Y(2*i-1,:) = min(X(seg(i):seg(i+1),:));
+    Y(2*i-0,:) = max(X(seg(i):seg(i+1),:));
+end
 
  
 %******************************************************
@@ -479,19 +510,19 @@ slow_columns = header(30);
 rows =         header(31);
 
 columns = fast_columns + slow_columns ; % define total number of columns in data
-data = reshape(data,columns,length(data)/columns);
+data = reshape(data,columns,[]);
 data = data';
 fast_data = data(:,slow_columns+1:columns);% extract the fast channels
 
 n_slow = rows*slow_columns; % Number of slow channels
 if (slow_columns ~= 0)
-        slow_data = data(:,1:slow_columns); % extract slow columns
-        slow_data = slow_data';
-        slow_data = slow_data(:);
-        slow_data = reshape(slow_data,n_slow,length(slow_data)/n_slow);
-        slow_data = slow_data'; % put slow vectors into columns
+    slow_data = data(:,1:slow_columns); % extract slow columns
+    slow_data = slow_data';
+    slow_data = slow_data(:);
+    slow_data = reshape(slow_data,n_slow,[]);
+    slow_data = slow_data'; % put slow vectors into columns
 else
-        slow_data = [];
+    slow_data = [];
 end
 
 %******************************************************************************
@@ -502,6 +533,8 @@ function fileName = getDataFileName
 % Fab, March 1998.
 % Modified by RGL to offer the latest '*.p' file for opening.
 % 2004-06--6
+% 2013-03-01 WID Now uses file_with_ext so case sensitive file systems will
+% not cause any problems.
 
 latest_file = get_latest_file;
 
@@ -513,10 +546,11 @@ while 1
    elseif isempty(fileName)
       fileName = latest_file;
    end
-   if exist(fileName, 'file')
-      break;
+   [P,N,E,fileName] = file_with_ext( fileName, {'' '.p' '.P'} );
+   if isempty(N),
+       fprintf( 1, 'Unable to find file: %s! Try again.\n', fileName );
    else
-      fprintf(1, 'Can not open file %s! Try again.\n', fileName);
+       break;
    end
 end
 

@@ -2,7 +2,7 @@
 % Real-time or replay plotting of data collected with a horizontal microstruture
 % profiler (HMP).
 %%
-% <latex>\index{Type A!plot\_HMP}</latex>
+% <latex>\index{Functions!plot\_HMP}</latex>
 %
 %%% Syntax
 %   plot_HMP( fileName, setup_fn )
@@ -10,24 +10,29 @@
 % * [fileName] name of the data file
 % * [setup_fn] the name of the channel/data setup file
 %
-%%% Description
+%%% WARNING
+% This function is very old and does not make use of modern data files.  It
+% is included for users who already use the function and is not recommended
+% for new users.
 %
-% Function for the real-time (or post-time) plotting of data collected with a
-% horizontal profiler. The plotting style is in the form of horizontal traces
-% in a stack of subplots as shown in the next figure. Up to 16 channels can be
-% plotted. Each screen consists of 50 records of data (which are usually 50
-% seconds long).  All graphical data are displayed in units of counts. The
-% channels that are plotted and the names placed on the y-axis labels are
-% determined by entries in the configuration file. In addition to the 
-% time-series, the function will also print on to the plot, the average 
-% temperature from a Sea-Bird thermometer, the pressure, tow speed, and heading,
-% if these are available. The averages are for the first record on the figure. 
-% The name of the data file, the date and time when the data were collected and 
-% when they were plotted are also annotated into the figure. Plotting continues 
-% for as long as new data are available in the source file. The function is 
-% somewhat interactive and the user can choose to have the local printer produce 
-% a hardcopy of each 50-record figure. The user can also select to look at a
-% particular 50-record segment.
+%%% Description
+% Function for the real-time (or post-time) plotting of data collected with
+% a horizontal profiler. The plotting style is in the form of horizontal
+% traces in a stack of subplots as shown in the next figure. Up to 16
+% channels can be plotted. Each screen consists of 50 records of data
+% (which are usually 50 seconds long).  All graphical data are displayed in
+% units of counts. The channels that are plotted and the names placed on
+% the y-axis labels are determined by entries in the configuration file. In
+% addition to the time-series, the function will also print on to the plot
+% the average temperature from a Sea-Bird thermometer, the pressure, tow
+% speed, and heading, if these are available. The averages are for the
+% first record on the figure. The name of the data file, the date and time
+% when the data were collected and when they were plotted are also
+% annotated into the figure. Plotting continues for as long as new data are
+% available in the source file. The function is somewhat interactive and
+% the user can choose to have the local printer produce a hardcopy of each
+% 50-record figure. The user can also select to look at a particular
+% 50-record segment. 
 %
 %%% Examples
 %
@@ -40,8 +45,9 @@
 %     plotaverages: 16,17,10,53,54,32,33
 %     averagenames: SBT2E,SBT2O,Pres,U,V,Mx,My
 %
-% @image @images/plot_HMP @Example output produced by plot_HMP. @Data 
-% courtesy of Eric Kunze.
+% @image @images/plot_HMP @Example output produced by $\texttt{plot\_HMP}$.
+% @Example output produced by $\texttt{plot\_HMP}$. Data courtesy of Eric
+% Kunze. 
 %
 %   Note: This function has not been fully converted to support ODAS v6 and 
 %   higher. In the meantime, please note the following guidelines and 
@@ -82,6 +88,8 @@
 % * 2012-04-11 (WID) replaced inifile_with_instring calls with setupstr
 % * 2012-09-09 (WID) updated documentation to allow for publishing
 % * 2012-11-05 (WID) updated documentation
+% * 2015-07-03 (WID) quick look of code showed some errors - corrected
+%                    them.
 
 
 function plot_HMP(fileName, setup_fn)
@@ -97,7 +105,7 @@ function plot_HMP(fileName, setup_fn)
 % parsing of command line parameters
 if nargin < 2; 
     setup_fn   = 'setup.txt';
-    'Using local setup.txt file'
+    disp('Using local setup.txt file')
 end
 if nargin < 1; fileName  = []; end
 
@@ -266,7 +274,7 @@ while ~done
   
       if status >= 0; % reading successful
          nn = nn + 1; % get ready to read the next block
-         if (nb ~= 0 & ~done);% not real time and not done
+         if (nb ~= 0 && ~done);% not real time and not done
             done = (nn >= nb);
          end
 
@@ -409,33 +417,12 @@ function fid = fileOpen(fileName);
 %
 % Fab, March 1998.
 
-fid = -1;
 [fid, error_message] = fopen_odas(fileName, 'r');
-if ~isempty(error_message), error_message, end;
+if ~isempty(error_message), disp(error_message); end
 if fid == -1,
    error(sprintf('Error opening file %s !\n', fileName));
-   return
 end
 
-function     test_string = get_latest_file();
-%
-% function to get the name of the "*.p" file in the current directory with
-% the latest date. The assumption is that the user wants to plot the
-% latest data file.
-% RGL 2004-06-06
-
-D = dir('*.p');
-if (isempty(D)); test_string=[]; return; end% There are no *.p files in this directory
-test_string = D(1).name; % use the first file in the list of *.p files
-creation_date = datenum(D(1).date);% The date and time of its creation
-if size(D,1) > 1 ; % more than 1 file was found, so test which is the latest
-    for k = 2:size(D,1)
-        if creation_date < datenum(D(k).date)
-            creation_date = datenum(D(k).date); % This file is newer so use it.
-            test_string = D(k).name;
-        end
-    end
-end
 
 function [nRow, nCol, nSlowCol, slowCh, fastCh] = load_ch_setup(fid)
 % [nRow, nCol, nSlowCol, slowCh, fastCh] = load_ch_setup(fid) 

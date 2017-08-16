@@ -1,7 +1,7 @@
 %% make_scientific
 % Convert number into a string in scientific notation
 %%
-% <latex>\index{Type B!make\_scientific}</latex>
+% <latex>\index{Functions!make\_scientific}</latex>
 %
 %%% Syntax
 %   scString = make_scientific( N, Digits )
@@ -14,16 +14,23 @@
 %         array of strings.
 %
 %%% Description
-% Converts the number 'N' into a string representation in scientific 
-% notation. The resulting string is optimized for use in Matlab plotting.
-% When a matrix of values is inputed, each value is converted and a cell
-% array of strings is returned.
+% Converts the number $\texttt{N}$ into a string representation in
+% scientific notation. The resulting string is optimized for use in Matlab
+% plotting. When $\texttt{N}$ is a matrix, each value is converted, and
+% returned in a cell array of strings.
 %
 %%% Examples
 %
-%   >> plotLabel = make_scientific( pi, 5 )
+%   >> plotLabel = make_scientific( pi/100, 5 )
 %
-% Returns Pi with 5 significant digits: ``3.1416 \times 10^{0}''
+% Returns Pi/100 with 5 significant digits:
+%
+%        3.1416 \times 10^{-2}
+%
+% Rendered in a MATLAB plot as:
+%
+% <latex>\hspace{0.5in} $3.1416 \times 10^{-2}$</latex>
+%
 
 % Version History
 %

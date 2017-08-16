@@ -1,15 +1,18 @@
-%% read_tomi
+%% read_tomi - EXCLUDED
 % Read a range of records from an ODAS data file.
 %%
-% <latex>\index{Type B!read\_tomi}</latex>
+% <latex>\index{Functions!read\_tomi}</latex>
 %
 %%% Syntax
 %
-%   [blocks, header, data] = read_tomi( fid, start_block, end_block )
+%   [blocks, header, data] = read_tomi( fid, start_block, end_block, type )
 %
 % * [fid] file descriptor for an open ODAS data file
 % * [start_block] block index of the first segment block
-% * [end_block] block index of the last segment block - inclusive
+% * [end_block] block index of the last segment block - inclusive.  Use
+%               "NaN" to specify the end of file.
+% * [type] data type contained within file.  Optional - defaults to 'int16'
+%          for 16 bit data words.  Use 'uint8' to extract bytes.
 % * []
 % * [blocks] vector of the extracted record numbers
 % * [header] record header
@@ -21,6 +24,9 @@
 % by patch_odas but can also be used directly for the purpose of processing 
 % large data files into manageable portions.
 % 
+% Also used to extract data from ODAS serial port data files.  When used
+% with serial port data, specify the type as 'uint8'.
+%
 %%% Examples
 %
 %    >> [fid, error] = fopen_odas( 'raw_data_file.p', 'r' );
@@ -30,37 +36,68 @@
 %    >> end
 %
 % Read the first block from the data file 'raw_data_file.p'.
+%
+%    >> [fid, error] = fopen_odas( 'serial_data_file.s', 'r' );
+%    >> if isempty( error ),
+%    >>     [blks, header, data] = read_tomi( fid, 1, NaN, 'uint8' );
+%    >>     fclose( fid );
+%    >>     data = char(data)';      % Convert into a character string.
+%    >> end
+%
+% Extract all the data encoded within the 'serial_data_file.p' file.  The
+% resulting 'data' variable will contain a copy of the data observed on the
+% serial port without any ODAS added headers.
 
 % Version History
 %
 % * 2010-01-15 (AWS) support for odas v6 and up
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-10-23 (WID) documentation added
+% * 3013-03-21 (WID) added support for extracting data from serial files.
 
-function [blocks, header, data]=read_tomi(fid,start_block,end_block)
+function [blocks, header, data] = read_tomi(fid, start_block, end_block, type)
+
+% set the default value for "type" - a 16bit signed word.
+if nargin <= 3,
+    type = 'int16';
+end
 
 fseek(fid,0,'bof');
 
-junk = fread (fid,64,'ushort');
-header_size = junk(18)/2; % in units of 2 byte words
-record_size = junk(19)/2;
+head = fread (fid,64,'ushort');
+header_size = head(18)/2; % in units of 2 byte words
+record_size = head(19)/2;
 data_size = record_size - header_size;
 header_version_i = 11;
 
-data            = NaN(data_size*(end_block - start_block +1),1);
-d_buffer        = ones (data_size,1)*NaN;
-header          = ones (header_size*(end_block - start_block +1),1)*NaN;
-h_buffer        = ones (header_size,1)*NaN;
-
-
-header_version = bitshift(junk(header_version_i), -8) + bitand(junk(header_version_i), 255) /1000;
+header_version = bitshift(head(header_version_i), -8) + ...
+                 bitand(head(header_version_i), 255) /1000;
 
 if (header_version >=6)
-    setupfile_size = junk(12);
-    first_record_size = setupfile_size + header_size * 2;
+    setupfile_size = head(12);
+    if setupfile_size == 0,
+       first_record_size = 0;
+    else
+       first_record_size = setupfile_size + header_size * 2;
+    end
 else
     first_record_size = record_size * 2;
 end
+
+% Allow "NaN" to be used to specify the entire file.  If specified,
+% calculate the last block and use as end_block.
+if isnan(end_block),
+    fseek( fid, 0, 'eof' );
+    file_length = ftell( fid );
+    end_block = (file_length - first_record_size) / (2 * record_size);
+end
+    
+
+data      = zeros(2*data_size*(end_block - start_block +1),1,'uint8');
+d_buffer  = zeros(2*data_size,1,'uint8');
+header    = ones (header_size*(end_block - start_block +1),1)*NaN;
+h_buffer  = ones (header_size,1)*NaN;
+
 
 fseek(fid, first_record_size + 2*(header_size+data_size)*(start_block-1),'bof');
 
@@ -70,30 +107,46 @@ fseek(fid, first_record_size + 2*(header_size+data_size)*(start_block-1),'bof');
 for index = 1:(end_block - start_block + 1)
 
 % Now read the header
-   [h_buffer, count] = fread (fid, header_size,'short');
+   [h_buffer, count] = fread (fid, header_size, 'short');
    if count ~= header_size,
     disp(['Failed to read header at block = ' num2str( start_block + index -1)])
         blocks = index -1;
         header = header(1:(index-1)*header_size);%trim stuff we failed to read
-        data   = data  (1:(index-1)*data_size);
+        data   = data  (1:(index-1)*2*data_size);
         break
    end
 
 % Now read the data
-   [d_buffer, count] = fread (fid, data_size,'short');
-   if count ~= data_size
+   [d_buffer, count] = fread (fid, 2*data_size, '*uint8');
+   if count ~= 2*data_size
     disp(['Failed to read data at block = ' num2str(start_block +index -1)])
         blocks = index -1;
         header = header(1:(index-1)*header_size);%trim stuff we failed to read
-        data   = data  (1:(index-1)*data_size);
+        data   = data  (1:(index-1)*2*data_size);
         break
    end
 
-   data (1+((index-1)*data_size):index*data_size) = d_buffer;      %fill in
+   data (1+((index-1)*2*data_size):index*2*data_size) = d_buffer;      %fill in
    header (1+((index-1)*header_size):index*header_size) = h_buffer;%fill in
 
-blocks = index;
+   blocks = index;
 end
 
+% Now must convert data into the requested type - account for endian format
+[a,b,mendian] = computer;
+dendian = 'B';
+if head(64) == 1, dendian = 'L'; end
 
+% Convert the data into the requested type.  This step is needed for proper
+% use of the "swapbytes" function.
+data = typecast(data, type);
+
+% Swap the bytes if the machine that recorded the data and the current PC
+% have different endian formats.
+if mendian ~= dendian, data = swapbytes(data); end
+
+% If not specifically requested, return the data as double values.
+if nargin <= 3,
+    data = cast(data, 'double');
+end
 

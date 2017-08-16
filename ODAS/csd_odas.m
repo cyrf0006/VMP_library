@@ -1,7 +1,7 @@
 %% csd_odas
-% Estimate the cross- and auto-spectrum of one or two vectors
+% Estimate the cross- and auto-spectrum of one or two vectors.
 %%
-% <latex>\index{Type A!csd\_odas}</latex>
+% <latex>\index{Functions!csd\_odas}</latex>
 %
 %%% Syntax
 %   [Cxy, F, Cxx, Cyy] = csd_odas(x, y, nFFT, rate, window, overlap, msg)
@@ -31,28 +31,37 @@
 % * [Cyy] Auto-spectrum of y if x is different from y and y is not empty.
 %
 %%% Description
-% Estimate the cross- and auto-spectrum of one or two vectors.  For best results
-% nFFT should be several times shorter than the lengths of 'x' and 'y' so the 
-% ensemble average of the segments of length nFFT has some statistical 
-% significance. The cross-spectrum has the property that its integral from 0 
-% to the Nyquist frequency equals the covariance of 'x' and 'y', if they are 
-% real variables. The vectors 'x' and 'y' can be complex. 
+% Use this
+% function only if the vectors are complex. Otherwise, use the function
+% $\texttt{csd\_matrix\_odas}$. This function will become inactive and point
+% to $\texttt{csd\_matrix\_odas}$ once it can handle complex signals.
 %
-% This function tests if 'x' is identical to 'y' and if 'y' is empty, $y=[\ ]$. If 
-% so, it computes only the auto-spectrum and places it into 'Cxy', and it will 
-% not return 'Cxx' and 'Cyy', or it returns them empty. It behaves likewise if 
-% 'y' equals the empty matrix. Thus, there is no need for a separate function to 
-% calculate auto-spectra. In addition, if 'x' and 'y' are not the same vector, 
-% then the two auto-spectra are optionally available and can be used to calculate
-% the coherency spectrum and the transfer function of 'y' relative to 'x'. This
-% function 'csd_odas' is very similar to the Matlab function 'csd' that is no
-% longer supported by MathWorks.  We do not like the new approach used by
-% MathWorks for spectral estimation because their new methods does not support
-% the linear detrending of each segments before calling the fft. It only allows
-% the detrending of the entire vectors 'x' and 'y', which can leave undesirable
-% low-frequency artifacts in the cross- and auto-spectrum. In addition, you do
-% not need the Signal Processing Toolbox to use this function.  The equation
-% for the squared-coherency spectrum is:
+% Estimate the cross- and auto-spectrum of one or two vectors. For best
+% results nFFT should be several times shorter than the lengths of
+% $\texttt{x}$ and $\texttt{y}$ so the ensemble average of the segments of
+% length nFFT has some statistical significance. The cross-spectrum has the
+% property that its integral from 0 to the Nyquist frequency equals the
+% covariance of $\texttt{x}$ and $\texttt{y}$, if they are real variables.
+% The vectors $\texttt{x}$ and $\texttt{y}$ can be complex. 
+%
+% This function tests if $\texttt{x}$ is identical to $\texttt{y}$ and if
+% $\texttt{y}$ is empty, $\texttt{y=[ ]}$. If so, it computes only the
+% auto-spectrum and places it into $\texttt{Cxy}$, and it will not return
+% $\texttt{Cxx}$ and $\texttt{Cyy}$, or it returns them empty. It behaves
+% likewise if $\texttt{y}$ equals the empty matrix. Thus, there is no need
+% for a separate function to calculate auto-spectra. In addition, if
+% $\texttt{x}$ and $\texttt{y}$ are not the same vector, then the two
+% auto-spectra are optionally available and can be used to calculate the
+% coherency spectrum and the transfer function of $\texttt{y}$ relative to
+% $\texttt{x}$. This function $\texttt{csd\_odas}$ is very similar to the
+% Matlab function $\texttt{csd}$ that is no longer supported by MathWorks.
+% We do not like the new approach used by MathWorks for spectral estimation
+% because their new methods do not support the linear detrending of each
+% segment before calling the fft. It only allows the detrending of the
+% entire vectors $\texttt{x}$ and $\texttt{y}$, which can leave undesirable
+% low-frequency artifacts in the cross- and auto-spectrum. In addition, you
+% do not need the Signal Processing Toolbox to use this function.  The
+% equation for the squared-coherency spectrum is:
 %
 % $$G_{xy}(f)=\frac{|C_{xy}(f)|^2}{C_{xx}(f)C_{yy}(f)}$$
 %
@@ -70,6 +79,8 @@
 %   auto-spectrum. Forced Cxx and Cyy to [], for auto-spectrum
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-07-04 (RGL) added parabolic and cubic detrending feature
+% * 2015-11-18 (RGL) Divided zero and Nyquist frequency components by 2.
+%      Update the documentation.
 
 function [Cxy, F, Cxx, Cyy] = csd_odas(x, y, n_fft, rate, Window, over_lap, msg)
 
@@ -197,21 +208,25 @@ else
     end
 end
 
-% Select the frequency range. 
-if ~any(any(imag([x y])~=0)),   % Then x and y are not complex
-    thems_real = 1; % x and y are real
-    if rem(n_fft,2),    % n_fft is odd
-        range = 1:(n_fft+1)/2;
-    else
-        range = 1:n_fft/2 + 1;   % includes DC AND Nyquist frequency
-    end
+% Select the frequency range.
+info_x = whos('x');
+info_y = whos('y');
+
+if info_x.complex || info_y.complex
+    % Either x or y is complex.
+    thems_real = 0;
+    range = 1:n_fft;
+else
+    % Both x and y are real.
+    thems_real = 1;
+
+    range = 1:ceil((n_fft+1)/2);   % includes DC AND Nyquist frequency
+    
     Cxy = Cxy(range);
     Cxx = Cxx(range);
     Cyy = Cyy(range);
-else
-    range = 1:n_fft;
-    thems_real = 0; % x or y is complex
 end
+
 F = (range - 1)'*rate/n_fft;
 
 % Now normalize the spectral variance so that:
@@ -230,23 +245,21 @@ end
 
 if (thems_real)
     Cxy = Cxy / (n_fft*rate/2);
-%     Cxy(1)   = Cxy(1) / 2; % Uncomment if you plan to use the cumsum
-%     Cxy(end) = Cxy(end) / 2; function to integrate the spectrum.
+     Cxy(1)   = Cxy(1) / 2; % Uncomment if you plan to use the cumsum
+     Cxy(end) = Cxy(end) / 2; % function to integrate the spectrum.
     if (nargout > 2)
         Cxx = Cxx / (n_fft*rate/2);
         Cyy = Cyy / (n_fft*rate/2);
-%         Cxx(1)   = Cxx(1) / 2;   
-%         Cyy(end) = Cyy(end) / 2; % function to integrate the spectrum.
+         Cxx(1)   = Cxx(1) / 2;   
+         Cyy(end) = Cyy(end) / 2; % function to integrate the spectrum.
     end
 else % They are complex
-   Cxy = Cxy / (n_fft*rate);
+    Cxy = Cxy / (n_fft*rate);
     if (nargout > 2)
         Cxx = Cxx / (n_fft*rate);
         Cyy = Cyy / (n_fft*rate);
     end
- 
-end
-if ~thems_real, 
+    
     n = find (F >= rate/2);
     F(n) = F(n) - rate;
     F = fftshift(F);
@@ -256,9 +269,7 @@ if ~thems_real,
         Cyy = fftshift(Cyy);
     end       
 end
-if (nargout == 1),     F = []; Cxx = []; Cyy = []; end
-if (nargout == 2),             Cxx = []; Cyy = []; end
-if (nargout == 3),                       Cyy = []; end
+
 
 
 

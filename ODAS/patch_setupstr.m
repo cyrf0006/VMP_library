@@ -1,24 +1,34 @@
 %% patch_setupstr
-% Patch a configuration string into an existing v6 ODAS data file
+% Patch a configuration string into an existing RSI raw binary data file
 %%
-% <latex>\index{Type A!patch\_setupstr}</latex>
+% <latex>\index{Functions!patch\_setupstr}</latex>
 %
 %%% Syntax
-%   patch_setupstr( rawDataFile, configFile )
+%   patch_setupstr( rawDataFile, configFile, ['-force'], ['-revert'] )
 %
-% * [rawDataFile] Name of the ODAS data file into which 'configFile' should
+% * [rawDataFile] Name of the data file into which 'configFile' should
 %         be embedded.
 % * [configFile] Name of the configuration file to embed.
+% * ['-force']  Force the patch.  Use with extreme caution.
+% * ['-revert'] Revert to the original configuration file. All previously 
+%         applied patches will be lost.
 %
 %%% Description
 %
-% Patch an external configuration string into the first record of an ODAS data 
-% file.
+% Patch an external configuration string into the first record of a RSI raw
+% binary data file.
 %
-% This function is used to modify the header contained within an ODAS data file.
-% One typically performs this task when calibration values contained within a
-% data file need to be modified.  It can also be used to convert older data
-% files into v6 data files.
+% This function is used to modify the configuration string in a data file.
+% The configuration file may have erroneous conversion parameters that must
+% be corrected, before the file is turned into a mat-file in physical
+% units. It can also be used to upgrade an older-style data file that does not
+% have a configuration string, so that it can be used with this Matlab
+% Library.
+%
+% When updating a data file with a new configuration string, the
+% original configuration string is commented out and appended to the new
+% configuration string. This retains the contents of the original string,
+% making it possible to revert to the original one.
 %
 % When patching a data file, the parameters that directly affect data 
 % acquisition *MUST NOT* be changed.  These values include;
@@ -29,42 +39,37 @@
 % # no-slow,
 % # matrix.
 %
-%%% Notes
+% The $\texttt{'-force'}$ bypasses all safety checks. Use with caution.
 %
-% # The original data file will be backed-up as 'fname_orig.p' only if this file
-%   does not already exist.
-% # The patched data file will be created as 'fname.p'.
-% # A comment will be added to the top of the new setup file string to emphasize
-%   that this data file has a patched setup file string. 
-% # Certain parameters in the root section must be left unchanged in order to 
-%   maintain the original structure of the data. Error messages will be 
-%   displayed when attempting to change any of these values.
-% # Only the first header will be modified with respect to the new setup file 
-%   string size at offset 12.
+% The $\texttt{'-revert'}$ option reverts the configuration string to its
+% original value. 
 %
 %%% Examples
 %
 %    >> patch_setupstr( 'data_005.p', 'setup.cfg' );
 %
-% Embed the configuration string from 'setup.cfg' into the data file 
-% 'data_005.p'.  If the backup file 'data_005_orig.p' does not exist, one is 
-% created with the contents of 'data_005.p'.
+% Embed the configuration string in the file $\texttt{setup.cfg}$ into the data file 
+% $\texttt{data\_005.p}$.
 %
 %    >> extract_setupstr( 'data_005.p', 'data_005.cfg' );
 %    >> edit data_005.cfg
 %    >> patch_setupstr( 'data_005.p', 'data_005.cfg' );
 %
-% Example of how 'patch_setupstr' can be used with 'extract_setupstr' to modify
-% the calibration coefficients embedded within a data file.  Hidden in this
-% example is how changes are made to the configuration file, 'data_005.cfg', by
-% the edit command.
+% Example of how $\texttt{patch\_setupstr}$ can be used with $\texttt{extract\_setupstr}$ to
+% modify the calibration coefficients embedded within a data file. It is
+% assumed that changes will be made by the $\texttt{edit}$ command.
 %
-%%% Notes
+%    >> patch_setupstr( 'data*', '-revert' )
 %
-% # Older v1 data files can be patched with a configuration file to update them
-%   to v6 data files.  This greatly simplifies subsequent data processing and is
-%   highly recommended.
-% # Patching v1 data files with a v6 header only changes the first header.
+% Removes all patches to the specified data files. Note the use of a wild
+% card character to specify more than a single file. 
+%
+% Older-style data files, that do not have a configuration string, can be
+% upgraded with a configuration-string, so that the data file can be
+% processed with this version of the ODAS Matlab Library. The upgrade
+% replaces the first record with a new header and the configuration string.
+% No data is lost because there is no data in the first record of
+% older-style data files. 
 %
 
 % *Version History:*
@@ -77,32 +82,67 @@
 % * 2012-04-25 (WID) updated documentation and added changes for R2007b
 % * 2012-09-09 (WID) modified to utilize file_with_ext.  Updated documentation.
 % * 2012-11-05 (WID) updated documentation
+% * 2015-02-16 (WID) include the force option
+% * 2015-07-17 (WID) added support for revert option.  Now saves the
+%                    original configuration file within the comments.
+% * 2015-07-27 (WID) documentaion update.
+% * 2015-10-30 (RGL) documentaion update.
+% * 2016-02-03 (WID) fix for older versions of Matlab.
 
 
-function patch_setupstr(datafname, setupfname)
+function patch_setupstr(datafname, varargin)
 
+% Constants:
+CONFIG_IDENTIFIER = '; ### Original Configuration String Below ###';
+
+% Process input options...
+% Currently only look for the '-force' option.
+force = logical(0);
+revert = logical(0);
+setupfname = [];
+
+for arg = varargin
+    if strcmpi(arg, '-force') || strcmpi(arg, '-f')
+        force = logical(1);
+        warning('Forcing Insertion of new configuration file.');
+    elseif strcmpi(arg, '-revert') || strcmpi(arg, '-r')
+        revert = logical(1);
+        disp('Reverting to the original configuration file.');
+    else
+        setupfname = arg{1};
+    end
+end
+
+
+% Attempt to open the data file.
 [N,M,E,datafname] = file_with_ext( datafname, ...
                        {'' '.p' '.P'}, ...
                        ['Unable to find file: ' datafname] );
 
-[N,M,E,setupfname] = file_with_ext( setupfname, ...
-                       {'' '.cfg' '.CFG'}, ...
-                       'ODAS v6 configuration file not found.' );
-
-% Attempt to open all required files.  Must find and report all possible 
-% errors before proceeding.
-
-% Attempt to open the data file.
 [data_fid, msg] = fopen_odas(datafname, 'r');
 if (data_fid < 3 || ~isempty(msg))
     error('Unable to open file: %s\n%s', datafname, msg);
 end
+
+
+% If configuration file not specified, it is an error - unless we are
+% reverting to the original version.
+if isempty(setupfname) && ~revert
+    error('Configuation file not specified.');
     
-% Attempt to open the setup file.
-[setup_fid, msg] = fopen(setupfname, 'r');
-if (setup_fid < 3 || ~isempty(msg))
-    error('Unable to open file: %s\n%s', datafname, msg);
+elseif ~revert
+    % Attempt to open the setup file.
+    [N,M,E,setupfname] = file_with_ext( setupfname, ...
+        {'' '.cfg' '.CFG'}, ...
+        'ODAS v6 configuration file not found.' );
+    
+    [setup_fid, msg] = fopen(setupfname, 'r');
+    if (setup_fid < 3 || ~isempty(msg))
+        error('Unable to open file: %s\n%s', datafname, msg);
+    end
+
 end
+
 
 % Read the header, process errors.
 [header, size] = fread(data_fid, 64, '*ushort');
@@ -125,25 +165,39 @@ while exist(new_file, 'file'), new_file = tempname; end
     
 [patched_fid, msg] = fopen(new_file, 'w', endian);
 if (patched_fid < 3 || ~isempty(msg))
-    error('Unable to create file: %s\n%s', new_file, msg);
+    error('Unable to create temporary file: %s\n%s', new_file, msg);
 end
     
 % the size in bytes of the setup file string contained in the first record
 setupFileSize = header(12);
 
 % read the old and new setup file into single strings
-[oldstr, size] = fread(data_fid, double(setupFileSize), '*char*1');
+[oldstring, size] = fread(data_fid, double(setupFileSize), '*char*1');
 if size ~= setupFileSize, error('Unable to extract setup file.'); end
-    
-[newstr, size] = fread(setup_fid, inf, '*char*1');
-if size == 0, error('Unable to read provided setup file.'); end
 
-oldstr = oldstr';
-newstr = newstr';
+if ~revert
+    [newstr, size] = fread(setup_fid, inf, '*char*1');
+    if size == 0, error('Unable to read provided setup file.'); end
+    newstr = newstr';
+
+else
+    % If reverting, we grap a copy of the old string, strip out the comment
+    % marks, and use it as the input string.
+    idx = regexp(oldstring', CONFIG_IDENTIFIER, 'split');
+    
+    if length(idx) == 2
+        idx = regexp(idx{2}, '((\n\r)|(\r\n)|\n|\r); ', 'split');
+        newstr = strjoin(idx, '\n');
+    else
+        error('Unable to extract original configuration string.');
+    end    
+end
+
+oldstr = oldstring';
 
 % skip different safetly checks for v1 data files.  The observed setup file for 
 % such files will be invalid - it's the first data block.
-if version == 1
+if version == 1 && ~force
     
   % check that the following values are the same:  rate, no-fast, no-slow, 
   % and the matrix
@@ -206,7 +260,7 @@ if version == 1
     end
   end
 
-else
+elseif ~force
   % This is a v6 (or larger) data file
 
   cfg_new = setupstr(newstr);
@@ -253,9 +307,44 @@ else
   end
 end     % end safety checks
 
+% Find the original configuration string from the file's embedded
+% configuration string.  If not specified, convert the entire embedded
+% configuration string into a new "original" configuration string.
+
+idx = strfind(oldstring', CONFIG_IDENTIFIER);
+if isempty(idx)
+    result = '';
+    parts_old = regexp(oldstring', '(\n\r)|(\r\n)|\n|\r', 'split');
+    for part = parts_old
+        result = sprintf('%s\n; %s', result, part{1});
+    end
+    oldstring = sprintf('%s%s', CONFIG_IDENTIFIER, result);
+else
+    oldstring = oldstring(idx(end):end)';
+end
+
+% Anything below the configuration identifier has to be removed from the
+% input configuration string.
+idx = regexp(newstr, CONFIG_IDENTIFIER, 'split');
+newstr = idx{1};
+
 % show patch date/time at the top of the file to remind user that we are dealing with a patched setup file.
-tmpstr = [';' datestr(now,'yyyy-mm-dd HH:MM:SS') ' patched setup file str' char(10) ];
-newstr = [tmpstr newstr];
+if ~revert
+    tmpstr = ['; ' datestr(now,'yyyy-mm-dd HH:MM:SS') ' patched configuration string' char(10) ];
+    newstr = [tmpstr newstr];
+end
+
+parts_new = regexp(newstr,    '(\n\r)|(\r\n)|\n|\r', 'split');
+parts_old = regexp(oldstring, '(\n\r)|(\r\n)|\n|\r', 'split');
+
+newstr = strjoin(parts_new, '\n');
+oldstr = strjoin(parts_old, '\n');
+
+if ~revert
+    % Only use the old string when not reverting.
+    newstr = strjoin( {newstr oldstr}, '\n\n' );
+end
+
 header(12) = length(newstr);
 
 % write the header, return error if not fully written
@@ -277,27 +366,9 @@ end
 
 fclose('all');
 
-% Success in creating a patched ODAS data file - time to replace the original
-% - rename/move all files to their new locations.
-[N,Nfn,M] = fileparts(datafname);
-%count = 0;
-new_name = [Nfn '_orig.p'];
-%while exist(new_name, 'file')
-%    count = count + 1;
-%    new_name = sprintf('%s%s%d.p', Nfn, '_orig', count);
-%end
-
-% Move the old data file.  Don't overwrite the original file if present.
-if ~exist(new_name, 'file')
-  [success, msg, N] = movefile(datafname, new_name);
-  if ~success
-      error('Error saving original file to: %s\n%s', new_name, msg);
-  end
-end
-
 % Move the new data file into the location of the old data file
-[success, msg, N] = movefile(new_file, datafname);
-if ~success, error('Error moving new file to: %s\n%s', datafname, msg); end
+[success, msg] = movefile(new_file, datafname);
+if ~success, error('Error writing to datafile: %s\n%s', datafname, msg); end
 
 end
 
@@ -321,5 +392,21 @@ function new = convert_header(header)
     
     % unknown build number - just leave as 0.
     new(14) = 0;
+    
+end
+
+
+% For those with older versions of Matlab, this function is provided.  It 
+% overrides the function provided by Matlab on newer versions of Matlab.
+function result = strjoin(str, delim)
+
+    result = str{1};
+    
+    if nargin == 1, delim = ' '; end
+    if length(str) <= 1, return; end
+    
+    for i = 2:length(str)
+        result = sprintf([texstr(result,'') delim texstr(str{i},'')]);
+    end
     
 end

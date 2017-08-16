@@ -1,22 +1,23 @@
 %% nasmyth
 % Generate a Nasmyth universal shear spectrum
 %%
-% <latex>\index{Type A!nasmyth}</latex>
+% <latex>\index{Functions!nasmyth}</latex>
 %
 %%% Syntax
 %   [phi, varargout] = nasmyth( varargin )
 %
-% * [e] Rate of dissipation in units of W/kg.  
-% * [nu] Kinematic viscosity in units of m^2/s. Default value is 1e-6.
+% * [e] Rate of dissipation in units of watts per kg.
+% * [nu] Kinematic viscosity in units of metre-squared per second. Default
+%       value is 1e-6. 
 % * [N] Number of spectral points. Default value is 1000.
-% * [k] Wavenumber in cpm. 
+% * [k] Wavenumber in cpm.
 % * []
-% * [phi] Nasmyth spectrum in units of s^-2 cpm^-1. The length of 
-%       phi is N, or the length of k.
+% * [phi] Nasmyth spectrum in units of per seconds-squared per cpm. The
+%       length of phi is N, or the length of k.
 % * [k] Wavenumber in cpm.
 %
 %%% Description
-% This function generates a Nasmyth universal shear spectrum.  There are 
+% This function generates a Nasmyth universal shear spectrum.  There are
 % four basic forms of this function:
 %
 %    1) [phi,k] = nasmyth( e, nu, N);
@@ -24,26 +25,30 @@
 %    3) [phi,k] = nasmyth( 0, N );
 %    4)  phi    = nasmyth( 0, k );
 %
-% Form 1: Return the Nasmyth spectrum for the dissipation rate $e$ and viscosity 
-% $nu$.  The length of the returned spectrum $phi$ is $N$ and $k$ is the 
-% wavenumber in cpm.  Default values are $nu$ = 1e-6 and $N$ = 1000.
+% Form 1: Return the Nasmyth spectrum for the dissipation rate $\texttt{e}$ and viscosity
+% $\texttt{nu}$. The length of the returned spectrum $\texttt{phi}$ is $\texttt{N}$ and $\texttt{k}$ is the
+% wavenumber in cpm.  Default values are $\texttt{nu} = \num{1e-6}$ and $\texttt{N}$ = 1000.
 %
-% Form 2: Same as form 1) except that the Nasmyth spectrum is evaluated at 
-% the wavenumbers given in the input vector $k$ (in cpm).
+% Form 2: Same as form 1) except that the Nasmyth spectrum is evaluated at
+% the wavenumbers given in the input vector $\texttt{k}$ [in cpm].
+% $\texttt{k}$ must be a vector.
 %
-% Form 3: Return the non-dimensional Nasmyth spectrum (G2 spectrum) of length
-% $N$ points.  The wavenumber is $k = k'/ks$ [where $k'$ is in cpm 
-% (see Oakey 1982)] and runs from 1e-4 to 1.
+% Form 3: Return the non-dimensional Nasmyth spectrum (the G2 function in
+% Oakey, 1982) of length $\texttt{N}$ points. The wavenumber is $k = k'/ks$
+% [where $k'$ is in cpm, $k_s = (\epsilon/\nu^3)^{1/4}$ (see Oakey 1982)]
+% and runs from $\num{1e-4}$ to 1.
 %
-% Form 4: Same as form 3) except that the non-dimensional spectrum is evaluated 
-% at the wavenumbers given in the input vector $k$ (in $k'/ks$).
+% Form 4: Same as form 3) except that the non-dimensional spectrum is evaluated
+% at the wavenumbers given in the input vector $\texttt{k}$ (in $k'/k_s$).
 %
 %%% Note
-% For forms 1) and 2), the dissipation rate can be a vector, 
-% e.g. $e$ = [1e-7 1e-6 1e-5],  in which case $phi$ is a matrix 
-% whose columns contain the scaled Nasmyth spectra for the elements in $e$. 
+% For forms 1) and 2), the dissipation rate can be a vector, e.g.
+% $\texttt{e}$ = [1e-7 1e-6 1e-5], in which case $\texttt{phi}$ is a matrix
+% whose columns contain the dimensional Nasmyth spectra for the dissipation
+% rates specified in $\texttt{e}$. 
 %
-% The form of the spectrum is computed from Lueck's (1995) fit to the 
+% The form of the spectrum is computed from a fit by Lueck that is 
+% documented in McMillan, et al (2016) and is based on the
 % Nasmyth points listed by Oakey (1982).
 %
 %%% Examples
@@ -61,12 +66,12 @@
 %
 %    >> phi = nasmyth( 0, logspace(-3,0,512) )
 %
-%%% References: 
+%%% References:
 %
 % # Oakey, N. S., 1982: J. Phys. Ocean., 12, 256-271.
-% # Wolk, F., H. Yamazaki, L. Seuront and R. G. Lueck, 2002: A new free-fall
-%   profiler for measuring biophysical microstructure. J. Atmos. and Oceanic
-%   Techno., 19, 780-793.
+% # McMillan, J.M., A.E. Hay, R.G. Lueck and F. Wolk, 2016: Rates of
+% dissipation of turbulent kinetic energy in a high Reynolds Number tidal
+% channel. J. Atmos. and Oceanic. Techno., 33, TBD.
 
 % *Version History:*
 %
@@ -77,37 +82,39 @@
 % * 2000-09-28 (FW) Alec Electronics: wavenumber input (form 2)
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-09-08 (WID) improved documentation for matlab publishing
-%
+% * 2013-06-22 (RGL) changed to the modified form of Nasmyth with integral = 2/15.
+% * 2015-11-18 RGL Updated documentation.
+% * 2016-03-21 RGL replaced nargchk with narginchk.
 
 function [phi,varargout] = nasmyth(varargin)
 
 % argument checking
-error(nargchk(1,3,nargin));
+narginchk(1,3);
 [scaled,e,nu,N,k] = checkArgs(varargin,nargin);
 
 if scaled  % forms 1) and 2)
    e = e(:)';
    Ne = length(e);
-   ks = (e./nu.^3).^(1/4); % Kolmogorov wavenumber(s)    
-   ks = ks(ones(N,1),:);   
+   ks = (e./nu.^3).^(1/4); % Kolmogorov wavenumber(s)
+   ks = ks(ones(N,1),:);
    if isempty(k) % form 1)
       x = logspace(-4,0,N)';
-      x = x(:, ones(1,Ne)); 
+      x = x(:, ones(1,Ne));
    else          % form 2)
       k = k(:,ones(1,Ne));
       x = k./ks;
    end
-   G2 = 8.05*x.^(1/3)./(1+(20*x).^(3.7)); % Lueck's fit
-   k = x.*ks;    
-   e = e(ones(N,1),:);   
+   G2 = 8.05*x.^(1/3) ./ (1 + (20.6*x).^(3.715)); % Lueck's improved fit
+   k = x.*ks;
+   e = e(ones(N,1),:);
    phi = e.^(3/4) * nu^(-1/4) .* G2;
-   varargout{1} = k;            
+   varargout{1} = k;
 else    % forms 3) and 4)
    if isempty(k) % form 3)
       k = logspace(-4,0,N)';  % k = k_hat/k_s, as in Oakey 1982.
       varargout{1} = k;
    end
-   phi = 8.05*k.^(1/3)./(1+(20*k).^(3.7)); % Lueck's fit
+   phi = 8.05*k.^(1/3) ./ (1 + (20.6*k).^(3.715)); % Lueck's improved fit
 end
 
 
@@ -148,8 +155,3 @@ if length(N) > 1 % last argument is vector means it's a wavenumber vector
       N = length(k);
    end
 end
-
-
-
-   
-   

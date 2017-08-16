@@ -1,36 +1,41 @@
 %% get_profile
 % Extract indices to where an instrument is moving up or down
 %%
-% <latex>\index{Type A!get\_profile}</latex>
+% <latex>\index{Functions!get\_profile}</latex>
 %
 %%% Syntax
 %   profile = get_profile( P, W, pMin, wMin, direction, minDuration, fs )
 %
-% * [P] Vector of pressure.
-% * [W] Vector of rate of change of pressure - make sure it has no flyers.
-% * [pMin] Minimum pressure for finding profiles.
-% * [wMin] Minimum rate of change of pressure for finding profiles.
+% * [P] Pressure vector
+% * [W] Vector of the rate-of-change of pressure.
+% * [pMin] Minimum pressure, for a valid profile.
+% * [wMin] Minimum magnitude of the rate-of-change of pressure, for a valid profile.
 % * [direction] Direction of profile, either 'up' or 'down'.
-% * [minDuration] Minimum duration (s) for up/down to be considered a profile.
+% * [minDuration] Minimum duration, for a valid profile [s].
 % * [fs] Sampling rate of P and W in samples per second.
 % * []
-% * [profile] 2 X N matrix where each column is the start and end indexes for 
-%         each profile.  Empty if no profiles detected.
+% * [profile] 2 X N matrix where each column contains the start- and
+%      end-indices of a profile, according to the input definition. Empty
+%      if no profiles were detected.
 %
 %%% Description
-% Extract the slow sampling indices to the sections of a profile where the 
-% instrument is steadily moving up or down for at least min-duration seconds.
+% Extract the sample indices to the sections in a data file where the 
+% instrument is steadily moving in $\texttt{direction}$ (up or down) for at
+% least $\texttt{minDuration}$ seconds, faster than $\texttt{wMin}$ and at
+% a pressure greater than $\texttt{pMin}$. 
 %
 % Call this function separately for ascents and descents.
 %
-% Developed for finding sections in Slocum profiles but it can also be used
-% for vertical profilers that have numerous profiles in a single file.
-%
+% Can be used with data files collected with any vertical profiler or
+% glider. 
 
 % *Version History:*
 %
 % * 2011-12-26 (RGL) initial
 % * 2012-04-30 (WID) comments added to allow for Matlab publishing
+% * 2015-07-27 (WID) Documentation update
+% * 2015-10-29 (RGL) Documentation update
+% * 2015-11-18 RGL Documentation updates.
 
 function profile = get_profile(P, W, P_min, W_min, direction, min_duration, fs)
 

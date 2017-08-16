@@ -1,12 +1,12 @@
 %% fopen_odas
-% Open a raw ODAS data file of unknown endian type
+% Open a RSI raw binary data file of unknown endian type
 %%
-% <latex>\index{Type A!fopen\_odas}</latex>
+% <latex>\index{Functions!fopen\_odas}</latex>
 %
 %%% Syntax
 %   [fid, errorMsg] = fopen_odas(fileName, permission)
 %
-% * [fileName]   Name of the requested ODAS data file.
+% * [fileName]   Name of the requested RSI raw data file.
 % * [permission] Permission string, usually 'r', or 'r+'. Consult Matlab 
 %                documentation for the command 'fopen'.
 % * []
@@ -16,7 +16,7 @@
 %         open or no error was observed.
 %
 %%% Description
-% Used to open a raw ODAS data file of unknown endian type.  This function
+% Used to open a RSI raw binary data file of unknown endian type.  This function
 % observes the endian flag in the header to determin the correct endian format 
 % of the file.
 % 
@@ -36,11 +36,8 @@
 % Acceptable endian flags in the header are as follows:
 %
 % # 0 = unknown
-% # 1 = little endian (the usual value with Intel and compatible processors)
+% # 1 = little endian, the usual value with Intel and compatible processors
 % # 2 = big endian, the usual value with ODAS5-IR
-%
-% See the ODAS Data Acquisition Software Guide for more information on
-% the endian flag.
 %
 % Possible _error_msg_ Values:
 %
@@ -68,6 +65,9 @@
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-03-21 (WID) rewritten - simpler, added documentation.
 % * 2012-05-09 (WID) simplified and fixed.
+% * 2015-10-28 (RGL) Documentation changes.
+% * 2016-01-15 (WID) Forced to open in "US-ASCII" format.
+
 % =========================================================================
 function [fid, error_msg] = fopen_odas(file_name, permission)
 
@@ -126,5 +126,5 @@ else
 end
 
 % Now re-open the file with the correct endian flag
-fid = fopen(file_name, permission, endian);
+fid = fopen(file_name, permission, endian, 'US-ASCII');
 

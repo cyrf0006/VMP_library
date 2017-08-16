@@ -1,44 +1,50 @@
 %% extract_setupstr
-% Extract configuration string from v6 data file.
+% Extract configuration string from a RSI raw binary data file.
 %%
-% <latex>\index{Type A!extract\_setupstr}</latex>
+% <latex>\index{Functions!extract\_setupstr}</latex>
 %
 %%% Syntax
 %   configStr = extract_setupstr( dataFileName, configFileName )
 %
-% * [dataFileName]   Name of a version >= 6 data file.  (extension optional)
-% * [configFileName] Name of a configuration file that will be created and 
-%                    populated with the extracted configuration string.
+% * [dataFileName]   Name of a version raw binary data file (version >= 6).
+%       (extension optional) 
+% * [configFileName] Optional name of configuration file that should be
+%        generated.  When excluded, no file is created but the
+%        configuration string is still returned.
 % * []
 % * [configStr]      Resulting configuration string.
 %
 %%% Description
-% Extract the configuration string from a data file.  Use this function when one
-% needs a copy of the configuration file used when the data file was created.
-% Note that this function will only work on a v6 or greater data file.
+% Extract the configuration string from a RSI raw binary data file.  Use
+% this function when one needs a copy of the configuration file used when
+% the data file was created. Note that this function will only work on a v6
+% or greater data file. 
 %
-% If the configFileName is not provided and configStr not requested, this
-% function will display the resulting configuration string.  When configFileName
-% is provided, a new configuration file named configFileName is created with the
-% contents of the configuration string.  When configStr is requested, the
-% variable configStr is set to the configuration string.
+% If the $\texttt{configFileName}$ is not provided and configStr not
+% requested, this function will display the resulting configuration string.
+% When $\texttt{configFileName}$ is provided, a new configuration file
+% named $\texttt{configFileName}$ is created with the contents of the
+% configuration string. When $\texttt{configStr}$ is requested, the
+% variable $\texttt{configStr}$ is set to the configuration string. 
 %
-% Used in conjunction with "patch_setupstr", this functions allows one to
-% modify the calibration constants used during data analysis.  First, extract
-% the configuration string into a new file.  Edit the file as required. Finally,
-% use "patch_setupstr" to update the data file with the new configuration file.
+% Used in conjunction with $\texttt{patch\_setupstr}$, this functions allows one to
+% modify the calibration coefficients for the conversion of the data into
+% physical units, and for other forms of data processing. First, extract 
+% the configuration string into a new file.  Edit the file as required.
+% Finally, use $\texttt{patch\_setupstr}$ to update the data file with the new
+% configuration file. 
 %
 %%% Examples
 %
 %    >> configFile = extract_setupstr( 'data_005.p' )
 %
-% Extract the configuration string from the data file 'data_005.p' and store in
-% the variable "configFile".
+% Extract the configuration string from the data file $\texttt{data\_005.p}$ and store in
+% the variable $\texttt{configFile}$.
 %
 %    >> extract_setupstr( 'data_005.p', 'setup.cfg' )
 %
-% Extract the configuration string from 'data_005.p' and store it in the file
-% "setup.cfg".
+% Extract the configuration string from $\texttt{data\_005.p}$ and store it in the file
+% $\texttt{setup.cfg}$.
 
 % *Version History:*
 %
@@ -47,6 +53,8 @@
 % * 2012-11-05 WID documentation update
 % * 2012-11-27 WID fixed call to file_with_ext
 % * 2012-11-27 WID replaced fclose(all) with proper file closing.
+% * 2015-10-28 RGL Documentation changes.
+% * 2015-11-18 RGL Documentation changes.
 
 function out_file = extract_setupstr(data_file, setup_file)
 

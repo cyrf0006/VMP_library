@@ -1,26 +1,27 @@
 %% conductivity_TPcorr
-% Apply correction for thermal and pressure changes to a Sea-Bird SBE4C 
-% conductivity cell
+% Apply a correction for the thermal expansion and pressure contraction of
+% a Sea-Bird SBE4C conductivity cell.
 %%
-% <latex>\index{Type A!conductivity\_TPcorr}</latex>
+% <latex>\index{Functions!conductivity\_TPcorr}</latex>
 %
 %%% Syntax
 %   [sbcCorr] = conductivity_TPcorr( sbc, sbt, pres, CPcor, CTcor )
 %
-% * [sbc] Conductivity from Sea-Bird SBE4C conductivity sensor, in units of mS/cm.
-% * [sbt] Temperature from Sea-Bird SBE3F thermometer in units of degrees Celsius.
-% * [pres] Pressure in units dBar.
+% * [sbc] Conductivity from Sea-Bird SBE4C conductivity sensor, in units
+%         of mS/cm.
+% * [sbt] Temperature from Sea-Bird SBE3F thermometer in units of Celsius.
+% * [pres] Pressure in units of dBar.
 % * [CPcor] Correction factor for pressure. default: -9.57e-8
 % * [CTcor] Correction factor for temperature. default: 3.25e-6
 % * []
-% * [sbcCorr] Conductivity with correction applied in units of mS/cm.
+% * [sbcCorr] Conductivity with correction applied, in units of mS/cm.
 %
-% Inputs CPcor and CTcor are an optional pair.  Both must be either included or
-% excluded.
+% Inputs CPcor and CTcor are an optional pair.  Both must be either
+% included or excluded.
 %
 %%% Description
-% A function to apply the small correction for the thermal expansion 
-% and pressure contraction of the Sea-Bird SBE4C conductivity cell.
+% Apply a correction for the thermal expansion and pressure contraction
+% of the Sea-Bird SBE4C conductivity cell.
 %
 % The algorithm used:
 %
@@ -33,6 +34,7 @@
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-05-14 (WID) documentation update
 % * 2012-11-02 (WID) documentation update
+% * 2012-10-27 (RGL) Documentatioon changes.
 
 function sbc_corr = conductivity_TPcorr(sbc, sbt, pres, CPcor, CTcor)
 

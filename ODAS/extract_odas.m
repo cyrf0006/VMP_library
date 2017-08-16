@@ -1,51 +1,51 @@
 %% extract_odas
-% Extract a range of records from a binary ODAS file
+% Extract a range of records from a RSI raw binary data file
 %%
-% <latex>\index{Type A!extract\_odas}</latex>
+% <latex>\index{Functions!extract\_odas}</latex>
 %
 %%% Syntax
 %   [newFile, successFlag] = extract_odas( fileName, startRecord, endRecord )
 %
-% * [fileName]    Name of the binary data file with or without the '.p' 
-%                 extension.
+% * [fileName]    Name of the binary data file, extension optional.
 % * [startRecord] Record number from which to start copying records.
-% * [endRecord]   Record number of last record to be copied into the new file.
+% * [endRecord]   Record number of the last required record.
 % * []
-% * [newFile] Name of the file created by this function. The first record is 
-%        the first record of the original file because this record is special.
-%        Prior to version 6, it contains a copy of the address matrix.  In 
-%        versions >= v6, it contains the setup file string. The second record 
-%        number is record 'startRecord' and the last is record 'endRecord'.
+% * [newFile] Name of the file created by this function. The first record
+%        contains the configuration string. This allows the extracted file
+%        to be processed like any other raw data file. All records from 
+%        startRecord to endRecord are included in the new file.
 % * [successFlag] Integer representing status.  0 if operation successful,
-%        otherwise <= -1. This flag can be used to issue warning messages, etc.
+%        otherwise <= -1.
 %
 %%% Description
-% Extract a range of records from a binary ODAS file and move them into a new 
-% file. The new file has the same name as the old file except that the range 
-% of the records is appended to the name. The original file is not altered.
+% Extract a range of records from a RSI raw binary data file and move them
+% into a new file. The new file has the same name as the old file except
+% that the range of the records is appended to the name. The original file
+% is not altered.
 %
-% Binary data files collected with internally recording instruments can be very
-% long and challenge the processing power of computers. This function provides
-% a means to segment a file into shorter pieces to speed data processing.  The
-% companion function 'show_P' can be used to extract the record-average
-% pressure from a binary file which might be useful for determining the
-% appropriate range(s) to be extracted.
+% Binary data files are sometimes overwhelmingly long. This function
+% provides a means to segment a file into shorter pieces to speed up the
+% data processing.  The companion function 'show_P' can be used to extract
+% the record-average pressure from a binary file which might be useful for
+% determining the appropriate range(s) to be extracted.
 %
-% This function can be used iteratively to segment an ODAS binary data file
-% into an arbitrary number of smaller files.  See also, 'show_P.m'.
+% This function can be used iteratively to segment a raw binary data file
+% into an arbitrary number of smaller files.  See also,
+% $\texttt{show\_P.m}$. 
 %
 %%% Examples
 %
 % The following example shows how the large data file "DAT001.p" can be 
-% segmented for easier processing.  The user previously determined that the data
-% file contained relevant information between records 5400 and 6900.
+% segmented to produce a smaller file. The user previously determined that the data
+% file contained data of interest between records 5400 and 6900.
 %
 %    >> extract_odas( 'DAT001', 5400, 6900 )
 %    ans = DAT001_5400_6900.p
 %
 % The resulting file can be processed normally and, because it is smaller, will
 % process faster.
-
+%
+% Additional examples are in the top of the function itself.
  
 % The following example shows the first and first + second records being
 % extracted from the data file titled "DAT001.p".
@@ -61,7 +61,7 @@
 %    DAT001_1_1.p  ---  10595
 %    DAT001_1_2.p  ---  18915
 %
-% Two data files are extracted from the original data file "DAT001.p".  The file
+% Two data files are created from the original data file "DAT001.p".  The file
 % "DAT001_1_1.p" contains only the first record.  The second file "DAT001_1_2.p"
 % contains the first two records.  The file sizes for the three files are then 
 % printed to the console.
@@ -95,6 +95,10 @@
 % * 2012-05-07 WID update to documentation
 % * 2012-08-30 WID make use of file_with_ext function
 % * 2012-11-05 WID documentation update
+% * 2013-05-06 WID added bounds check for when start_record == 0
+% * 2015-07-27 WID Documentation update.
+% * 2015-10-28 (RGL) Documentation corrections.
+% * 2015-11-18 (RGL) Documentation corrections.
 
 function [new_file, success_flag] = extract_odas(file_name, start_record, end_record)
 
@@ -121,6 +125,11 @@ header_size = 64;
 record_size = header(19)/2;
 setupfile_size = header(12);
 
+
+if ~start_record,
+    warning('The first data record is at index 1.  Using 1 in place of %d\n', start_record);
+    start_record = 1;
+end
 
 
 %MSB has major version, LSB has minor version

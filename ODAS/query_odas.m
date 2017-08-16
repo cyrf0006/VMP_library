@@ -1,43 +1,44 @@
 %% query_odas
-% Extract slow/fast channels from address matrix in order.
+% Report which channels are in a RSI raw binary data file.
 %%
-% <latex>\index{Type A!query\_odas}</latex>
+% <latex>\index{Functions!query\_odas}</latex>
 %
 %%% Syntax
 %
 %   [ch_slow, ch_fast] = query_odas( fileName )
 %
-% * [fileName] ODAS data file name (.p) with optional extension
+% * [fileName] RSI raw binary data file name (.p) with optional extension
 % * []
 % * [ch_slow] vector of slow channels from the address matrix 
 % * [ch_fast] vector of fast channels from the address matrix 
 %
 %%% Description
 %
-% Return a list of channel numbers stored in an ODAS binary (.p) file.  The
-% routine loads the address matrix from the .p file and returns a list of
-% the channels in the matrix.  If two output variables are provided,
-% separate lists of slow and fast channels are returned in the same format
-% as the address matrix.  If only one output variable is used, the slow and
-% fast channels are listed in order within a single vector.
+% Return a list of channel $\texttt{id}$ numbers of the data in a RSI raw
+% binary data file, a $\texttt{p}$-file. This function reads the address
+% $\texttt{[matrix]}$ in the configuration string, and returns a list of the
+% channels in the matrix. If two output variables are specified, then
+% there is a separate list for slow and fast channels. If you specify a
+% single output variable, then the slow and fast channels are listed
+% together.
 % 
 %%% Examples
 %
 %    >> query_odas
 %
-% Extract the channel numbers from a data file.  The user will be prompted for 
-% the file name.
+% Extract the channel $\texttt{id}$ numbers from a data file. The user will
+% be prompted for the file name.
 %
 %    >> ch_list = query_odas( 'myfile' );
 %
-% Channel numbers for the channels within the file 'myfile' are stored into the
-% 'ch_list' variable.
+% Channel $\texttt{id}$ numbers for all of the channels within the file
+% $\texttt{myfile}$ are stored into the $\texttt{ch\_list}$ variable.
 %
 %    >> [ch_slow,ch_fast] = query_odas( 'myfile.p' );
 %
-% Channel numbers for the channels within the file 'myfile' are saved in the
-% same format as found in the address matrix.  Slow and fast channels are 
-% separated into the two vectors 'ch_slow' and 'ch_fast'.
+% Channel $\texttt{id}$ numbers for the slow and fast channels within the
+% file $\texttt{myfile}$ are listed separately in $\texttt{ch\_slow}$ and
+% $\texttt{ch\_fast}$, respectively. 
 
 % *Version History:*
 %
@@ -47,6 +48,7 @@
 % * 2011-09-01 AWS added documentation tags for matlab publishing
 % * 2012-04-11 WID changed inifile_with_instring calls to setupstr
 % * 2012-09-10 WID updated documentation for publishing
+% * 2015-10-31 RGL Changed documentation.
 
 function [ch_slow,ch_fast] = query_odas(fname)
 
@@ -102,10 +104,12 @@ header_version = bitshift(HD(header_version_i), -8) + bitand(HD(header_version_i
 if(header_version >= 6)
     setupfile_size = HD(setupfile_size_i);
     if setupfile_size <= 0
+        fclose(fid);
         error('incorrect setup file size extracted from first data record');
     end
     setupfilestr = char(fread(fid,setupfile_size, 'char'))';
     if(isempty(setupfilestr))
+        fclose(fid);
         error('failed to extract setup file string from first data record');
     end
 
