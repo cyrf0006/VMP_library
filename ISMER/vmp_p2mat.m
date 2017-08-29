@@ -78,32 +78,41 @@ load([data_fname,'.mat']); % load .mat just created
 
 
 %%%%% ---- Make time vectors ---- %%%%
-FS = fs_slow;
-fs = fs_fast;
-fs_units = 'Hz'; FS_units = 'Hz';
-nmax_slow = length(P); 
-nmax_fast = length(sh1);
-t_slow = (0:nmax_slow-1)'/FS; 
-t_fast = (0:nmax_fast-1)'/fs;
-clear nmax_slow nmax_fast fs_slow fs_fast
+if odas_version < 4
+    FS = fs_slow;
+    fs = fs_fast;
+    fs_units = 'Hz'; FS_units = 'Hz';
+    nmax_slow = length(P); 
+    nmax_fast = length(sh1);
+    t_slow = (0:nmax_slow-1)'/FS; 
+    t_fast = (0:nmax_fast-1)'/fs;
+    clear nmax_slow nmax_fast fs_slow fs_fast
 
-hh =        str2num(time(:,1:2)); 
-mm =        str2num(time(:,4:5)); 
-ss =        str2num(time(:,7:12)); 
-the_day =   str2num(date(:,1:2));
-the_month = str2num(date(:,4:5));
-the_year =  str2num(date(:,7:10));
+    hh =        str2num(time(:,1:2)); 
+    mm =        str2num(time(:,4:5)); 
+    ss =        str2num(time(:,7:12)); 
+    the_day =   str2num(date(:,1:2));
+    the_month = str2num(date(:,4:5));
+    the_year =  str2num(date(:,7:10));
 
-MTIME_tmp = datenum(the_year,the_month,the_day,hh,mm,ss);
-
-IMTIME_tmp = linspace(MTIME_tmp(1),MTIME_tmp(end),length(MTIME_tmp));
-IMTIME     = linspace(MTIME_tmp(1),MTIME_tmp(end),length(MTIME_tmp)*round(FS));
-iMTIME     = linspace(MTIME_tmp(1),MTIME_tmp(end),length(MTIME_tmp)*round(fs));
-MTIME = interp1(IMTIME_tmp,MTIME_tmp,IMTIME','linear','extrap');
-mtime = interp1(IMTIME_tmp,MTIME_tmp,iMTIME','linear','extrap');
-clear MTIME_tmp IMTIME_tmp IMTIME iMTIME;
-clear hh mm ss the_day the_month the_year;
-
+    MTIME_tmp = datenum(the_year,the_month,the_day,hh,mm,ss);
+    IMTIME_tmp = linspace(MTIME_tmp(1),MTIME_tmp(end),length(MTIME_tmp));
+    IMTIME     = linspace(MTIME_tmp(1),MTIME_tmp(end),length(MTIME_tmp)*round(FS));
+    iMTIME     = linspace(MTIME_tmp(1),MTIME_tmp(end),length(MTIME_tmp)*round(fs));
+    MTIME = interp1(IMTIME_tmp,MTIME_tmp,IMTIME','linear','extrap');
+    mtime = interp1(IMTIME_tmp,MTIME_tmp,iMTIME','linear','extrap');
+    clear MTIME_tmp IMTIME_tmp IMTIME iMTIME;
+    clear hh mm ss the_day the_month the_year;
+else % ODAS_v4
+    FS = fs_slow;
+    fs = fs_fast;
+    fs_units = 'Hz'; FS_units = 'Hz';
+    MTIME = datenum([date, ' ', time], ['yyyy-mm-dd HH:MM:SS.FFF'])... 
+                    + t_slow/86400;
+    mtime = datenum([date, ' ', time], ['yyyy-mm-dd HH:MM:SS.FFF'])... 
+                    + t_fast/86400;      
+end    
+   
 
 %%%% ---- Deconvolve and convert to phyisical units ---- %%%%
 
@@ -194,18 +203,15 @@ if header_version < 6 % Use legacy ODAS Library
         trans_units = 'FTU';
     end
 
-else % Use ODAS V3 
+elseif floor(odas_version) == 3 % Use ODAS V3 
     
     % Get lat lon
-    %profile_lat = str2num(char(inifile_with_instring(setupfilestr, 'readstring', {'cruise info','','profile_lat'})));
-    %profile_lon = str2num(char(inifile_with_instring(setupfilestr, 'readstring', {'cruise info','','profile_lon'})));
     cfg = setupstr(setupfilestr);
-    profile_lat = setupstr(cfg,'cruise info','profile_lat');
-    profile_lon = setupstr(cfg,'cruise info','profile_lon');
+    profile_lat = setupstr(cfg,'cruise_info','profile_lat');
+    profile_lon = setupstr(cfg,'cruise_info','profile_lon');
     profile_lat = str2num(profile_lat{1});
     profile_lon = str2num(profile_lon{1});
     
-
     % convert slow channels
     P_hres       = deconvolve('pres', P, P_dP, FS, setupfilestr, header_version);
     [P, P_units] = convert_odas(P_hres, 'pres', 'string', setupfilestr, header_version);
@@ -265,7 +271,81 @@ else % Use ODAS V3
     
     if exist('fluoro') ~= 0
         [fluoro, fluoro_units] = convert_odas(fluoro, 'fluoro', 'string', setupfilestr, header_version);
+    end       
+    
+elseif floor(odas_version) == 4 % Use ODAS V4
+    disp('Check vmp_p2mat.m, ODAS_v4 not fully implemented')
+    keyboard
+    % Get lat lon
+    cfg = setupstr(setupfilestr);
+    profile_lat = setupstr(cfg,'cruise_info','profile_lat');
+    profile_lon = setupstr(cfg,'cruise_info','profile_lon');
+    profile_lat = str2num(profile_lat{1});
+    profile_lon = str2num(profile_lon{1});
+    
+    % convert slow channels
+    P_hres       = deconvolve('pres', P, P_dP, FS, setupfilestr, header_version);
+    [P, P_units] = convert_odas(P_hres, 'pres', 'string', setupfilestr, header_version);
+    
+    %if exist('sbt')~=0 & exist('sbc')~=0 
+    if exist('SBT') & exist('SBC')
+        [SBT, SBT_units] = convert_odas(SBT, 'sbt', 'string', setupfilestr, header_version);
+        [SBC, SBC_units] = convert_odas(SBC, 'sbc', 'string', setupfilestr, header_version);
+    end    
+    
+    % vertical velocity (for shear)
+    Nyquist = FS/2; 
+    Wn      = 1.5/Nyquist; % W is smoothed at 1.5 Hz.
+    W       = gradient(P, 1/FS);
+    [b,a]   = butter(4,Wn);
+    W       = filtfilt(b,a,W);
+    w       = interp1(t_slow, W, t_fast,'linear','extrap');
+    W_units = 'm/s'; w_units = 'm/s';
+    clear a b Nyquist Wn
+    
+    % convert fast channels
+    [az, az_units] = convert_odas(Az, 'Az', 'string', setupfilestr, header_version);
+    [ax, ax_units] = convert_odas(Ax, 'Ax', 'string', setupfilestr, header_version);
+    [ay, ay_units] = convert_odas(Ay, 'Ay', 'string', setupfilestr, header_version);
+    
+ 
+    if exist('sh1')
+        [shear1, shear1_units] = convert_odas(sh1, 'shear1', 'string', setupfilestr, header_version);
     end
+    
+    if exist('sh2')
+        [shear2, shear2_units] = convert_odas(sh2, 'shear2', 'string', setupfilestr, header_version);
+    end
+    
+    if exist('t1_dt1')
+        %t1_nonphys  = deconvolve('dtherm1', [], T1_dT1, fs, setupfilestr, header_version); 
+        t1_nonphys  = deconvolve('dtherm1', [], t1_dt1, fs, setupfilestr, header_version); 
+        %t1 = convert_odas(t1_nonphys, 'dtherm1', 'string', setupfilestr, header_version);
+    end
+    
+    if exist('t2_dt2') ~= 0 
+        %t2_nonphys  = deconvolve('dtherm2', [], T2_dT2, fs, setupfilestr, header_version);   
+        t2_nonphys  = deconvolve('dtherm2', [], t2_dt2, fs, setupfilestr, header_version);   
+        %t2 = convert_odas(t2_nonphys, 'dtherm2', 'string', setupfilestr, header_version)
+    end
+       
+    if exist('c1_dc1') ~= 0
+        %c1_nonphys  = deconvolve('ucond', [], C1_dC1, fs, setupfilestr, header_version); 
+        c1_nonphys  = deconvolve('ucond', [], c1_dc1, fs, setupfilestr, header_version); 
+        %c1 = convert_odas(c1_nonphys, 'ucond', 'string', setupfilestr, header_version);
+    end
+    
+    %if exist('trans') ~= 0
+    if exist('turb') ~= 0
+        [trans, trans_units] = convert_odas(turb, 'turb', 'string', setupfilestr, header_version);
+    end       
+    
+    if exist('fluoro') ~= 0
+        [fluoro, fluoro_units] = convert_odas(fluoro, 'fluoro', 'string', setupfilestr, header_version);
+    end    
+else
+    disp('WRONG ODAS VERSION')
+    return
 end
 % Clean unnecessary variables
 %clear P_dP Ptmp sh1 sh2 T1 T1_dT1 T2 T2_dT2 C1_dC1 ch14 ch15
