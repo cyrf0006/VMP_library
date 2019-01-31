@@ -4,9 +4,16 @@
 % <latex>\index{Functions!get\_scalar\_spectra\_odas}</latex>
 %
 %%% Syntax
-%   sp = get_scalar_spectra_odas( scalar_vectors, P, t, speed, ... )
+%   sp = get_scalar_spectra_odas( scalar_vectors, ref_vector, P, t, speed, ... )
 %
 % * [scalar_vectors] Matrix in which each column is a scalar vector.
+% * [ref_vector] Matrix of column vectors of reference signals that are
+%       contaminating the scalar signals. Usually this is a measure of the
+%       magnetic field induced by a near-by electromagnetic current meter.
+%       If present AND if the optional locical value of "goodman" is true,
+%       then this function will call clean_shear_spec.m to remove the
+%       contamination of the scalar signals. Can be empty, in which case
+%       there is no decontamination regardless of the value of "goodman". 
 % * [P] Column vector of pressure that will be used to calculate the average
 %       pressure of the data used for each spectrum. Its length must match
 %       the number of rows in scalar_vectors.
@@ -52,6 +59,9 @@
 %      get_diss_odas. 
 % * [fs] Sampling rate in Hz. Default value = 512.
 % * [f_AA] Cut-off frequency of the anti-aliasing filter. Default = 98 Hz.
+% * [goodman] Logical variable to determine if the function
+%      clean_shear_spec should be called to remove coherent signal
+%      contamination of the scalar signals using the signals in ref_vector.
 %
 %%% Resulting Output Structure
 %
@@ -84,8 +94,11 @@
 %       so that this functions works with oer versions of Matlab.
 % * 2015-10-29 (RGL) Documentation updates.
 % * 2015-11-18 RGL Documentation updates.
+% * 2016-12-13 RGL Added coherent noise removal to support cleaning the
+%       spectra with the function clean_shear_spec, also known as the
+%       Goodman coherent noise removal algorithm. 
 
-function sp = get_scalar_spectra_odas(scalar_vectors, P, t, speed, varargin)
+function sp = get_scalar_spectra_odas(scalar_vectors, ref_vector, P, t, speed, varargin)
 
 % Default values for optional fields
 default_fft_length  = 512;
@@ -95,6 +108,7 @@ default_fs          = 512;
 default_gm          = 'first_difference';
 default_f_AA        = 98;
 default_diff_gain   = [];
+default_goodman     = false;
 
 z = inputParser;
 z.CaseSensitive = true;
@@ -107,6 +121,7 @@ val_speed      = @(x) isnumeric(x) && (isvector(x) || isscalar(x)) && ~any(x < 0
 val_vector     = @(x) isnumeric(x) && isvector(x);
 val_string     = @(x) ischar(x);
 val_diff_gain  = @(x) (isvector(x) && ~any(x < 0)) || isempty(x);
+val_logical    = @(x) (islogical(x));
 
 addRequired(  z, 'scalar_vectors', val_matrix);
 addRequired(  z, 'P',              val_vector);
@@ -120,6 +135,7 @@ addParamValue(z, 'overlap',        default_overlap,     val_positive);
 addParamValue(z, 'fs',             default_fs,          val_positive);
 addParamValue(z, 'gradient_method',default_gm,          val_string);
 addParamValue(z, 'f_AA',           default_f_AA,        val_positive);
+addParamValue(z, 'goodman',        default_goodman,     val_logical);
 
 % Parse the arguments.
 parse(z, scalar_vectors, P, t, speed, varargin{:});
@@ -167,6 +183,7 @@ P              = z.Results.P;
 t              = z.Results.t;
 f_AA           = z.Results.f_AA;
 gradient_method = z.Results.gradient_method;
+goodman         = z.Results.goodman;
 
 if spec_length == inf, spec_length = 3*fft_length;      end
 if overlap     == inf, overlap     = round(spec_length / 2);end
@@ -176,6 +193,9 @@ if isrow(t), t = t'; end
 if isrow(P), P = P'; end
 if isscalar(speed), speed = speed*ones(size(t)); end
 if isrow(speed), speed = speed'; end
+if size(scalar_vectors,1) ~= size(ref_vector,1)
+    goodman = false;
+end
 
 % end of input argument checking.
 select = (1:spec_length)';
@@ -206,15 +226,30 @@ while select(end) <= size(scalar_vectors,1)
     sp.P    (index)  = mean(P(select));
     sp.t    (index)  = mean(t(select));
 
-    for k = 1:num_of_vectors
-        [junk, F] = ...
-            csd_odas(scalar_vectors(select,k),...
-            [], fft_length, fs, [], fft_length/2,'linear'); % frequency spectrum
-        sp.scalar_spec(:,k,index) = junk*W; % It is now a wavenumber spectrum.
+    if goodman
+        [P_scalar_clean, AA, P_scalar, UA, F] = clean_shear_spec(...
+            ref_vector(select,:), scalar_vectors(select,:), fft_length, fs);
+        if size(P_scalar_clean,2) > 1
+            P_scalar_clean = permute(P_scalar_clean, [3 1 2]);
+        end
+        P_scalar_clean = squeeze(P_scalar_clean);
+        for k = 1:num_of_vectors
+            sp.scalar_spec(:,k,index) = P_scalar_clean(:, k, k) * W;
+            % we return only the auto-spectra of the cleaned scalar spectra
+        end
+    else
+        for k = 1:num_of_vectors
+            [junk, F] = ...
+                csd_odas(scalar_vectors(select,k),...
+                [], fft_length, fs, [], fft_length/2,'linear'); % frequency spectrum
+            sp.scalar_spec(:,k,index) = junk * W; % It is now a wavenumber spectrum.
+        end
     end
+    
+    
     F = F(:);
     sp.F(:,index) = F;   % The frequency - never changes between segments.
-    sp.K(:,index) = F/W; % The wavenumberas - changes between segments.
+    sp.K(:,index) = F / W; % The wavenumberas - changes between segments.
 
     if index == 1 && strcmpi(gradient_method, 'first_difference') % Only calculate once
         correction = ones(size(F)); % pre-fill

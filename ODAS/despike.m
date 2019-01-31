@@ -121,6 +121,10 @@
 % * 2015-11-09 (RGL) Added the fraction of removed data to the return
 %                    values.
 % * 2015-11-18 (RGL) Documenttion corrections.
+% * 2016-06-14 (RGL) Forced spike fraction to be calculated so that it is
+%                    returned even if we reach max_pass_count.
+% * 2017-04-10 (RGL) Changed N in title of figure to correctly indicate the
+%                    number of points to be removed.
 
 function [y, spike, pass_count, despike_fraction] = despike (dv, thresh, smooth, Fs, N, varargin)
 
@@ -147,10 +151,9 @@ despike_fraction = 0;
 while pass_count < max_pass_count    
     [y,spike_pass,dv_LP,dv_HP] = single_despike(y, thresh, smooth, Fs, N, varargin);
     
-    if isempty(spike_pass),
-        despike_fraction = length(find(y ~= dv)) / length(y);
-        return;
-    end
+     despike_fraction = length(find(y ~= dv)) / length(y); % calculate in case pass_count = 10;
+
+     if isempty(spike_pass),  return; end
     
     spike = union( spike', spike_pass' );
     pass_count = pass_count + 1;
@@ -256,13 +259,13 @@ end
         
         t_junk = (0:length(dv)-1)'/Fs; % Used for plotting
         
-        subplot(2,1,1)
+        ax(1)=subplot(2,1,1);
         title_string = [...
             'pass-count = ' num2str(pass_count) ...
             ', thresh = ' num2str(thresh) ...
             ', smooth = ' num2str(smooth) ...
             ', Fs = ' num2str(Fs) ...
-            ', N = ' num2str(2*N) ...
+            ', N = ' num2str(N) ...
             ', spikes = ' num2str(length(spike_pass))];
         h = semilogy(...
             t_junk, dv_HP, ...
@@ -275,10 +278,12 @@ end
         legend('|sh|', '|sh| - LP', 'Spike', 'location', 'northeast')
         title(title_string)
         
-        subplot(2,1,2)
+        ax(2)=subplot(2,1,2);
         plot(t_junk, [dv y]); grid on
         xlabel('\it t \rm [s]')
         legend('Dirty', 'Clean', 'location','northeast')
+        
+        linkaxes(ax,'x')
         pause
     end
 

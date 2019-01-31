@@ -45,6 +45,8 @@
 % * [T] Temperature vector used when calculating kinematic viscosity.
 %       Length must match shear.
 % * [P] Pressure data. Must have same length as the shear-probe data.
+% * [goodman] Logical variable to determine if the goodman coherent noise
+%       reduction algorithm should be used. Default is "true".
 %
 %%% Optional Input Parameters
 %
@@ -181,6 +183,26 @@
 % * 2015-11-18 (RGL) Documentation changes.
 % * 2015-11-19 (RGL) Finally added dof (degrees of freedome) amd mad (mean
 %       absolute deviation) to this function. 
+% * 2016-08-05 (RGL) Fixed problem with pwermitation when there is only 1
+%       shear probe. Accelerometers were not correctly permuted.
+% * 2016-08-15 (RGL) The above fix was not quite right.
+% * 2016-08-30 (RGL) Modefined definitions of dof. dof_spec is now the
+%       degrees of freedom of the spectral values. It is
+%       2*2*9/11*num_of_fft_segments. dof_e is the degrees of freedom of a
+%       dissipation estimate. It is the number of wavenumber points used to
+%       estimate epsilon, divided by the Nyquist bandwidth, times the
+%       diss_length (in samples). This is not the best estimate but will
+%       have to do for now. I will come up with a proper relative bandwidth
+%       estimate, later. Corrected again on 2016-08-31.
+% * 2016-12-12 (RGL) Added check for if the Goodman routine should be
+%       called. Added by-pass in case that Goodman is not used.
+% * 2017-01-11 (RGL) set K_range to no less than 3 points in case of a
+%       rediculously slow speed, for which K=0 may be the only wavenumber
+%       smaller than 10 cpm.  
+% * 2017-01-30 (RGL) Also had to set Range (near line 518) to a length no
+%       shorter than 2 in order for the trapz function not to fail. 
+% * 2017-04-03 (RGL) Added the return of default parameters in case their
+%        are no input arguments. 
 
 function diss = get_diss_odas(shear, A, varargin)
 
@@ -192,6 +214,7 @@ default_f_limit   = inf; % upper frequency limit of dissipation estimation
 default_UVW       = []; % U, V, W are the 3-D velocity components.
 default_Data_fast = [];
 default_Data_slow = [];
+default_goodman   = true;
 
 p = inputParser;
 p.CaseSensitive = true;
@@ -202,6 +225,7 @@ val_positive   = @(x) isnumeric(x)  && isscalar(x) && (x >= 0);
 val_matrix     = @(x) isnumeric(x)  && (size(x,1) > 1) && (size(x,2) >= 1);
 val_speed      = @(x) isnumeric(x)  && isvector(x) && (x >= 0);
 val_data       = @(x) (isnumeric(x) && (size(x,1) > 1) && (size(x,2) >= 1)) || isempty(x);
+val_logical    = @(x) (islogical(x));
 
 addRequired(  p, 'shear',       val_matrix);
 addRequired(  p, 'A',           val_matrix);
@@ -221,6 +245,22 @@ addParamValue(p, 'f_AA',        default_f_AA,      val_positive);
 addParamValue(p, 'f_limit',     default_f_limit,   val_positive);
 addParamValue(p, 'fit_2_isr',   default_fit_2_isr, val_positive);
 addParamValue(p, 'UVW',         default_UVW,       val_data);
+addParamValue(p, 'goodman',     default_goodman,   val_logical);
+
+
+if ~nargin,
+    for d = whos('default_*')',
+        param = regexp(d.name, 'default_(.*)', 'tokens');
+        result.(char(param{1})) = eval(d.name);
+    end
+    % Add the arguments from odas_p2mat.  They will not be required but can
+    % be used as a reference when calling quick_look directly.
+    p2mat = odas_p2mat();
+    for name = fieldnames(p2mat)'
+        result.(name{1}) = p2mat.(name{1});
+    end
+    return
+end
 
 % Parse the arguments.
 parse(p, shear, A, varargin{:});
@@ -268,6 +308,7 @@ f_limit      = p.Results.f_limit;
 t_fast       = p.Results.t_fast;
 e_inertial_sr= p.Results.fit_2_isr;
 UVW          = p.Results.UVW;
+goodman      = p.Results.goodman;
 
 % For backwards compatibility...  "t" was renamed "t_fast"
 if isfield(p.Unmatched, 't'), t_fast = p.Unmatched.t; end
@@ -303,7 +344,7 @@ diss.K_max        = diss.e;
 diss.warning      = diss.e;
 diss.method       = diss.e;
 diss.mad          = diss.e;
-diss.dof          = diss.e;
+diss.dof_e        = diss.e;
 
 % first dimension is frequency index
 
@@ -342,7 +383,7 @@ if isempty(Data_fast), mean_Data_fast = []; end
 if isempty(Data_slow), mean_Data_slow = []; end
 
 num_of_ffts = 2 * floor(length(select) / fft_length);
-dof_factor = 2*(9/11)*num_of_ffts;
+dof_spec = 2*2*(9/11)*num_of_ffts;
 
 %
 %Main loop
@@ -350,26 +391,53 @@ while select(end) <= size(shear,1)
     select_slow = select(1: round(fs_fast/fs_slow): end);
     select_slow = 1 + round((select_slow - 1) * fs_slow/ fs_fast);
 
-    [P_sh_clean, AA, P_sh, UA, F] = ...
+    if goodman
+        [P_sh_clean, AA, P_sh, UA, F] = ...
         clean_shear_spec(A(select,:), shear(select,:), fft_length, fs_fast);
+    else
+        push = [2 3 1]; %The permutation
+        method = 'parabolic';
+        [AA, F] = ...
+            csd_matrix_odas(...
+            A(select,:),     [], fft_length, fs_fast,[], fft_length/2, method);
+        [P_sh, F] = ...
+            csd_matrix_odas(...
+            shear(select,:), [], fft_length, fs_fast,[], fft_length/2, method);
+        P_sh       = permute(P_sh, push);
+        AA         = permute(AA,   push);
+        
+        % Remove extra dimensions
+        P_sh       = squeeze(P_sh);
+        P_sh_clean = P_sh; % artifical to make the cod rum
+        AA         = squeeze(AA);
+        UA         = AA; % artificial to make the code run
+    end
+    
     % Note, P_sh_clean and P_sh are [M M N] matrices where M is the number of
     % columns in shear (the number of shear probe signals) and N is the length of
     % the frequency vector F (usually fft_length/2 + 1).
     % If there is only a single shear probe, these matrices are [N 1] in size,
     % and I use the "squeeze" function to remove the redundant dimensions.
     %
-    % We now move the wavenumber indix into the first dimension, for memory
+    % We now move the wavenumber index into the first dimension, for memory
     % efficiency
     if size(P_sh,2) > 1
         P_sh       = permute(P_sh,       [3 1 2]);
         P_sh_clean = permute(P_sh_clean, [3 1 2]);
+    end
+    if size(AA,2) > 1
         AA         = permute(AA,         [3 1 2]);
+    end
+    if size(P_sh,2) > 1 && size(AA,2) > 1
         UA         = permute(UA,         [3 1 2]);
+    else
+        UA = UA';
+    end
         P_sh       = squeeze(P_sh); % remove extra dimension if shear is a vector
         P_sh_clean = squeeze(P_sh_clean);
         AA         = squeeze(AA);
-    end
-    % Convert frequency spectra to wavenumber spectra
+
+        % Convert frequency spectra to wavenumber spectra
     W = mean(abs(speed(select)));
 
     K = F/W;
@@ -382,7 +450,8 @@ while select(end) <= size(shear,1)
     correction(correction_index) = 1 + (junk(correction_index) / 48).^2;
     % wavenumber correction stops beyond 150 cpm.
     % Wavenumber correction after Macoun & Lueck
-    P_sh_clean = P_sh_clean * W; P_sh = P_sh * W;
+    P_sh_clean = P_sh_clean * W; 
+    P_sh       = P_sh       * W;
     P_sh_clean = P_sh_clean .* correction;
     P_sh       =       P_sh .* correction;
 
@@ -391,7 +460,8 @@ while select(end) <= size(shear,1)
     e      = zeros(1,num_of_shear); % pre-assign, one column per shear probe
     K_max  = e;
     method = e;
-    dof    = dof_factor * ones(size(e));
+    dof_e  = ones(size(e)) * diss_length; % The maximum possible degrees 
+    %                               of freediom of dissipation estimates.
     mad    = e;
 
     mean_T = mean(T(select));
@@ -406,13 +476,14 @@ while select(end) <= size(shear,1)
     if ~isempty(Data_slow), mean_Data_slow = mean(Data_slow(select_slow,:));end
 
     for column_index = 1:num_of_shear
-        if num_of_shear == 1 % we have only a sinle shear probe
+        if num_of_shear == 1 % we have only a single shear probe
             shear_spectrum = P_sh_clean;
         else % the auto-spectra are on the diagnonal
             shear_spectrum = P_sh_clean(:, column_index, column_index);
         end
         shear_spectrum = squeeze(shear_spectrum);
         K_range = find(K <= 10); % all wavenumber smaller than 10 cpm
+        if length(K_range) < 3, K_range = [1 2 3]'; end % in case of very low speed
         e_10 = 7.5*nu*trapz(K(K_range), shear_spectrum(K_range));
         e_1 = e_10*sqrt(1 + a*e_10); % This is the first estimate of the
         % rate of dissipation, using Lueck's model.
@@ -435,13 +506,24 @@ while select(end) <= size(shear,1)
             % Note K(1) is always zero and has problems with logarithms. Now we fit a
             % polyninomial to the spectrum
 
-            % Keep the fit_order reasonable. Any value from 4 to 8 could work
+            % Keep the fit_order reasonable. Any value from 3 to 8 could work
             fit_order = fit_in_range(fit_order, [3 8]);
 
             if Index_limit > fit_order + 2; % We have enough points for polyfit
                 % p   - polynomial of a polynomial fit to spectrum
                 % pd1 - first derivative of the polynomial
                 % pr1 - roots of first derivative of the polynomial
+                if sum(isnan(y))>0%JMM - to prevent getting errors if there are nans - might be better to fix clean shear spec code
+                    disp([num2str(sum(isnan(y))),' NaNs in spectrum'])
+                    if sum(isnan(y)) == 1 % Replace NaN with average
+                        ind = find(isnan(shear_spectrum));
+                        shear_spectrum(ind) = 0.5*(shear_spectrum(ind-1)+shear_spectrum(ind+1));
+                        
+                        y = log10(shear_spectrum(2:Index_limit));
+                    else
+                        continue %simply skip -- otherwise I get stuck in an infinite loop
+                    end
+                end %JMM (end)
                 p = polyfit(x, y, fit_order);
                 pd1 = polyder(p);
                 pr1 = sort( roots(pd1) );
@@ -462,6 +544,7 @@ while select(end) <= size(shear,1)
             K_limit = fit_in_range( min([pr1, log10(K_95), log10(K_AA)]), ...
                 [log10(10) log10(150)], log10(150));
             Range = find( K <= 10^(K_limit)); %Integration range for shear probes.
+            if length(Range) < 2, Range = [1 ; 2]; end
             e_3 = 7.5*nu*trapz(K(Range), shear_spectrum(Range));
 
             % Next, the non-dimensional limit of integration
@@ -515,14 +598,16 @@ while select(end) <= size(shear,1)
         
         e(column_index)   = e_4; % save it
         Nasmyth_spectrum(:,column_index) = nasmyth(e_4,nu,K);
-        dof(column_index) = dof(column_index) * length(Range - 1);
-        This_Nasmyth      = Nasmyth_spectrum(Range(2:end), column_index);
-        This_spectrum     =   shear_spectrum(Range(2:end));
-        mad(column_index) = mean(abs(log10(This_spectrum ./ This_Nasmyth)));
+%        dof(column_index) = dof(column_index) * length(Range - 1);
+        dof_e(column_index) = dof_e(column_index)*length(Range)/length(K);
+        This_Nasmyth        = Nasmyth_spectrum(Range(2:end), column_index);
+        This_spectrum       =   shear_spectrum(Range(2:end));
+        mad(column_index)   = mean(abs(log10(This_spectrum ./ This_Nasmyth)));
     end
 
     diss.e           (:,index)     = e;
-    diss.dof         (:,index)     = dof;
+    diss.dof_spec                  = dof_spec;
+    diss.dof_e       (:,index)     = dof_e;
     diss.mad         (:,index)     = mad;
     diss.Nasmyth_spec(:,:,index)   = Nasmyth_spectrum;
     diss.K_max       (:,index)     = K_max;

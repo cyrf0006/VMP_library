@@ -118,6 +118,10 @@
 % * 2015-11-19 (RGL) Corrected documentation.
 % * 2015-11-19 (WID) Tweak channels of type "accel" into channels of type
 %                    "piezo" if required.
+% * 2016-06-21 (WID) Fix crash when a section has no parameter/value pairs.
+% * 2016-12-29 (WID) Added fix for XMP therm channel with diff_gain.
+% * 2018-08-28 (JMM) Added a warning message if info is removed from setup
+%                    string
 
 function varargout = setupstr(arg1, arg2, arg3, arg4)
 
@@ -237,7 +241,7 @@ for i=1:length(lines)
   [a,b] = regexp(lines{i}, '^\s*\[\s*(.+)\s*\]', 'tokens');
   if ~isempty(b)
     section = lower(a{1}{1});
-    index = 1;               % reset the index..
+    index = 1;                    % reset the index..
     dest = 1;
     s_index = s_index + 1;
     continue;
@@ -339,6 +343,17 @@ function clean = tweak_setup_structure( dirty )
         matrix(end+1,:) = C{1}';
     end
     
+    % Purge the data structure of sections with no parameter / value pairs.
+    for ch = setupstr( clean, '', '', '' )
+        idx = 1;
+        while idx <= length(clean)
+            if isempty(clean(idx).k)
+                clean = [clean(1:idx-1) clean(idx+1:end)];
+            end
+            idx = idx + 1;
+        end
+    end
+    
     % If required, insert the number of rows.
     if isempty(rows)
         rows = size(matrix, 1);
@@ -432,6 +447,8 @@ function clean = tweak_setup_structure( dirty )
         
         tmpid = eval(['[' id{1} ']']);
         if isempty(find(tmpid(1) == matrix, 1))
+            fprintf(2,'WARNING: ')
+            fprintf(2,['Removing channel ''%s'' from setup structure (ID number ''%d'' is NOT in address matrix).\n'],ch{1},tmpid)
             for x = length(clean):-1:1
                 if isempty(find(strcmp(clean(x).k,ch), 1)), continue; end
                 % Remove channels that are not in the address matrix.
@@ -462,5 +479,19 @@ function clean = tweak_setup_structure( dirty )
         end
     end
     
+    % Correct XMP configuration file error.  diff_gain added to channels
+    % without pre-emphasis.  Causes problems for odas_p2mat so this
+    % parameter should be removed.
+    if ~isempty(setupstr( clean, 'T1', 'type', 'xmp_therm' ))
+        for x = 1:length(clean)
+            if ~strcmp(clean(x).k{1}, 't1'), continue; end
+            for xx = 1:length(clean(x).v)
+                if ~strcmp(clean(x).v(xx).k,'diff_gain'), continue; end
+                clean(x).v(xx) = [];
+                break;
+            end
+            break;
+        end        
+    end
 end
 

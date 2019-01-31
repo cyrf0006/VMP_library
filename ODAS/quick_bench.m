@@ -4,20 +4,27 @@
 % <latex>\index{Functions!quick\_bench}</latex>
 %
 %%% Syntax
-%   quick_bench( 'dataFileName', 'serialNumber' )
+%   quick_bench( 'dataFileName', 'serialNumber', genPDF, genFIG )
 %
-% * [dataFileName] String. The name of the file to be processed (extension
-%        optional). 
+% * [dataFileName] Name of the file to be processed. If not declared the
+%        program will request a file. The default value is the most
+%        recently changed file in the current directory.
 % * [serialNumber] Serial number of the instrument as a string, or any
 %        other useful information. This string is placed into a line of the
-%        title of each figure. 
-%
+%        title of each figure.  If undeclared or left empty, the value of
+%        the "SN" parameter within the "Instrument_info" section of the
+%        configuration file will be used.
+% * [genPDF] Logical statement indicating that PDF files of resulting
+%        figures should be generated. Requires a "fig2pdf" program be
+%        installed.  Defaults to "true".
+% * [genFIG] Logical statement indicating that FIG files should be saved.
+%        Defaults of "false".
 % * []
 % * [empty] No return parameters but this function produces two figures.
 %
 %%% Description
 %
-% This function generates two figures from data collected with a RSI
+% This function generates figures from data collected with a RSI
 % instrument, that you wish to test. The instrument should be on a bench, or
 % just standing in a laboratory. Dummy probes should be installed when
 % collecting data. Data should be collected for a few minutes. This
@@ -39,7 +46,7 @@
 %    >> quick_bench( 'data_001.p', '43' )
 %
 % Plot the data in file $\texttt{data\_001.p}$ collected with the instrument
-% that has the serial number 43.  The serial number is not required, but
+% that has serial number 43.  The serial number is not required, but
 % the string will be added to the title of the figures.
 %
 % @image @images/quick_bench_1 @The time-series output from the
@@ -95,351 +102,460 @@
 % 2015-10-30 (RGL) Corrected spectrum of P_dP using fs_slow. Documentation
 %                  changes. Added saving the figures as both Matlab figures
 %                  and as pdf-files. Set the gca fontsize explicitly to 16.
+% 2016-05-24 (WID) Allow slow channel thermistor data to still work.
+% 2016-06-07 (WID, RGL) Corrected faulty logic of previous change. Added
+%                   time labels to all x-axes.
+% 2016-06-09 (WID) Another fix for previous change - fixed the spectra.
+% 2016-06-09 (WID) Big changes. Reading most channels now occurs by type.
+%                  SN is obtained from the configuration string is
+%                  available.  PDF and FIG file generation can be turned
+%                  off/on.
+% 2016-06-22 (WID) Enable grids.
+% 2016-10-14 (RGL) Fixed for Matlab2016a. Removed unncecessary subplot commands.
+% 2016-11-21 (RGL) Modified accelerometer section so that this function can
+%                  handle the case of both piezo-accelerometers and linear
+%                  accelerometers, such as with tidal energy Nemo and for
+%                  Sophie Merryfield's MR.
+% 2017-04-20 (RGL) Corrected ylabel on spectra.
+% 2017-06-09 (RGL) Added support for Jac EMC. 
+% 2018-02-21 (WL) Plot JAC-C into two subfigures, JAC_C_V and JAC_C_I
 
-function quick_bench(fname, SN)
+function quick_bench(fname, SN, genPDF, genFIG)
 
-%
-P_diff_gain   = 20.3; % Gain of presure pre-emphasis ~20.5, for legacy files
 fft_length_in_seconds = 2;
 
 % Set the default serial number
 if nargin < 2, SN = '___'; end
 
+% Generate PDFs by default.
+if nargin < 3, genPDF = true; end
+
+% Do not generate FIGs by default.
+if nargin < 3, genFIG = false; end
+
 % Let read_odas sort out the file name.  This is easier and facilitates the
-% use of wilecards in the file name.
+% use of wildcards in the file name.
 if nargin < 1
-    [variable_list, data] = read_odas(); % convert to a mat-file
+    [variable_list, d] = read_odas(); % convert to a mat-file
 else
-    [variable_list, data] = read_odas(fname); % convert to a mat-file
+    [variable_list, d] = read_odas(fname); % convert to a mat-file
 end
 
 if isempty(variable_list)
-    error(['No data found in data file: ' data.fullName]);
+    error(['No data found in data file: ' fname]);
 end
-for i=fieldnames(data)', i=char(i); eval([i ' = data.' i ';']); end
 
 % When wildcards are used fname is meaningless.  Must use name returned
 % from read_odas.
-[filepath, filename, fileext] = fileparts( fullPath );
+[filepath, filename, fileext] = fileparts( d.fullPath );
+
+
+% If the serial number is defined within the instrument_info section, use
+% it only if a SN is not explicitly provided.
+sn = setupstr(d.cfgobj, 'instrument_info', 'SN');
+if ~isempty(sn) && (isempty(SN) || strcmp(SN, '___'))
+    SN = sn{1};
+end
+
 
 % __________________________________________________________________
 %
 % This is where we get some information about the data sampling
-Year  = header(2,4);
-Month = header(2,5);
-Day   = header(2,6);
-Hour  = header(2,7);
-Minute= header(2,8);
 
-if exist('P_dP','var') && exist('P','var')
-    P_hres = deconvolve('P_dP', P, P_dP, fs_slow, setupfilestr);
+if isfield(d,'P_dP') && isfield(d,'P')
+    P_hres = deconvolve('P_dP', d.P, d.P_dP, d.fs_slow, d.cfgobj);
 end
-if exist('Incl_X','var'), Incl_X = convert_odas(Incl_X, 'Incl_X', setupfilestr);end
-if exist('Incl_Y','var'), Incl_Y = convert_odas(Incl_Y, 'Incl_Y', setupfilestr);end
-if exist('Incl_T','var'), Incl_T = convert_odas(Incl_T, 'Incl_T', setupfilestr);end
+if isfield(d,'Incl_X'), d.Incl_X = convert_odas(d.Incl_X, 'Incl_X', d.cfgobj);end
+if isfield(d,'Incl_Y'), d.Incl_Y = convert_odas(d.Incl_Y, 'Incl_Y', d.cfgobj);end
+if isfield(d,'Incl_T'), d.Incl_T = convert_odas(d.Incl_T, 'Incl_T', d.cfgobj);end
 
 
 %_____________________________________________________________________
 % Make figures
 
-n_fft = round(fft_length_in_seconds*fs_fast); % length of fft for spectra in points
-n_fft_slow = round(n_fft*fs_slow/fs_fast); % length of fft for spectra of slow channels
+n_fft = round(fft_length_in_seconds*d.fs_fast); % length of fft for spectra in points
+n_fft_slow = round(n_fft*d.fs_slow/d.fs_fast); % length of fft for spectra of slow channels
+
 
 figure_file_name = ['QB_' SN '_' filename '_'] ;
 figure_num = 0;
-set(0,'Units','pixels')
-screen_size = get(0,'ScreenSize');
-landscape_size = round([0.90*screen_size(4) 0.65*screen_size(4)]);
-figure_position = [20 150  landscape_size];
 
-title_string = { texstr(sprintf('%s; %d_%02d_%02d, %02d:%02d UTC', ...
-                                filename, Year, Month, Day, Hour, Minute)),
-                 texstr(sprintf('SN_%s, Time Series', SN))};
+date_time_str = datestr(d.filetime, 'yyyy-mm-dd HH:MM UTC');
+title_string = texstr( { sprintf('%s; %s', filename, date_time_str)
+                         sprintf('SN_%s, Time Series', SN) } );
 
 figure_num = figure_num + 1;
-figure_position(1) = figure_position(1)+20;
 fig_handle = figure(figure_num);
 clf(fig_handle)
-%set(fig_handle,'paperorientation','landscape','Position',figure_position);clf
-set(fig_handle,'Position',figure_position);
+plt_axes = [];
 
-%
-% Figure out how many subplots are required
+%-----------------------------------------------------
+% -- Determine number of subplots --------------------
+%-----------------------------------------------------
 windows = 0;
-if exist('Ax','var') || exist('Ay','var') || exist('Az','var')
+accel = {};
+for name = setupstr(d.cfgobj, '', 'type', 'accel')
+    accel(end+1) = setupstr(d.cfgobj, name, 'name');
+end
+if ~isempty(accel), windows = windows + 1; end
+
+piezo = {};
+for name = setupstr(d.cfgobj, '', 'type', 'piezo')
+    piezo(end+1) = setupstr(d.cfgobj, name, 'name');
+end
+if ~isempty(piezo), windows = windows + 1; end
+
+shear = {};
+for name = setupstr(d.cfgobj, '', 'type', 'shear')
+    shear(end+1) = setupstr(d.cfgobj, name, 'name');
+end
+if ~isempty(shear), windows = windows + 1; end
+
+if isfield(d,'P') || isfield(d,'P_dP') || isfield(d,'P_hres')
     windows = windows + 1;
 end
-if exist('sh1','var') || exist('sh2','var')
+if isfield(d,'Mx') || isfield(d,'My') || isfield(d,'Mz')
     windows = windows + 1;
 end
-if exist('P','var') || exist('P_dP','var') || exist('P_hres','var')
+if isfield(d,'O2')
     windows = windows + 1;
 end
-if exist ('Mx','var') || exist ('My','var') || exist ('Mz','var')
+if isfield(d,'Incl_X') || isfield(d,'Incl_Y') || isfield(d,'Incl_T')
     windows = windows + 1;
 end
-if exist('O2','var')
-    windows = windows + 1;
+
+
+ucond = {};
+for name = setupstr(d.cfgobj, '', 'type', 'ucond')
+    parts = strsplit(name{1}, '_d');
+    if length(parts) == 2
+        ucond(end+1) = setupstr(d.cfgobj, name, 'name');
+    end
 end
-if exist ('Incl_X','var') || exist ('Incl_Y','var') || exist('Incl_T','var')
-    windows = windows + 1;
+if ~isempty(ucond), windows = windows + 1; end
+
+
+therm = {};
+for name = setupstr(d.cfgobj, '', 'type', 'therm|t_ms')
+    parts = strsplit(name{1}, '_d');
+    if length(parts) == 2
+        therm(end+1) = setupstr(d.cfgobj, name, 'name');
+    end
 end
-if (exist ('C1_dC1','var') || exist('C2_dC2','var'))
-    windows = windows + 1;
-end
-if (exist('T1_dT1','var') || exist('T2_dT2','var'))
-    windows = windows + 1;
-end
+if ~isempty(therm), windows = windows + 1; end
+
+%-----------------------------------------------------
+% -- Add Figures -------------------------------------
+%-----------------------------------------------------
 window_index = 0;
 
-spectra_legend = {};
-spectra_fast   = [];
-spectra_slow   = [];
-F_slow         = [];
+% Initialize as empty so plotting routine does not fail.
+F                    = [];
+F_slow               = [];
+F_therm              = [];
+F_ucond              = [];
+
+spectra_fast         = [];
+spectra_slow         = [];
+spectra_therm        = [];
+spectra_ucond        = [];
+
+spectra_legend       = {};
+spectra_slow_legend  = {};
+spectra_therm_legend = {};
+spectra_ucond_legend = {};
 
 %
-if exist('Ax','var') || exist('Ay','var') || exist('Az','var')
+% if ~isempty(accel)
+%     window_index = window_index + 1;
+%     h(window_index)=subplot(windows,1,window_index);
+%     plot_vector = [];
+%     legend_string = {};
+%     for ax = accel
+%         plot_vector = [plot_vector d.(ax{1})];
+%         legend_string{end+1} = ax{1};
+%         [junk, F] = csd_odas(d.(ax{1}), d.(ax{1}), n_fft, d.fs_fast, [], n_fft/2,'linear');
+%         spectra_fast = [spectra_fast junk];
+%         spectra_legend{end+1} = ax{1};        
+%     end
+%     plot(d.t_fast, plot_vector); 
+%     legend(legend_string,'location','eastoutside')
+%     ylabel ('[counts]')
+%     plt_axes = [plt_axes gca];
+%     set(gca,'xticklabel',[])
+% end
+%
+% check if accelerometers are fast or slow channels
+if ~isempty(accel)
     window_index = window_index + 1;
     h(window_index)=subplot(windows,1,window_index);
     plot_vector = [];
     legend_string = {};
-    if exist('Ax','var')
-        plot_vector = [plot_vector Ax];
-        legend_string{end+1} =  'A_x';
-        [junk, F]  = csd_odas(Ax, Ax, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'Ax';
+    it_is_fast = [];
+    ax = accel;
+    
+    if length(d.(ax{1})) == length(d.t_fast)
+        t = d.t_fast;
+        it_is_fast = true;
+    elseif length(d.(ax{1})) == length(d.t_slow)
+        t = d.t_slow;
+        it_is_fast = false;
+    else
+        t = [];
     end
-    if exist('Ay','var')
-        plot_vector = [plot_vector Ay];
-        legend_string{end+1} =  'A_y';
-        [junk, F]  = csd_odas(Ay, Ay, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'Ay';
+            
+    for ax = accel
+        plot_vector = [plot_vector d.(ax{1})];
+        legend_string{end+1} = ax{1};
+        if ~isempty(it_is_fast) && it_is_fast
+            [junk, F] = csd_odas(...
+                d.(ax{1}), d.(ax{1}), n_fft, d.fs_fast, [], n_fft/2,'linear');        
+            spectra_fast = [spectra_fast junk];
+            spectra_legend{end+1} = ax{1};        
+        elseif ~isempty(it_is_fast) && ~it_is_fast
+            [junk, F_slow] = csd_odas(...
+                d.(ax{1}), d.(ax{1}), n_fft_slow, d.fs_slow, [], n_fft_slow/2,'linear');
+             spectra_slow = [spectra_slow junk]; 
+             spectra_slow_legend{end+1} = ax{1};        
+        end
     end
-    if exist('Az','var')
-        plot_vector = [plot_vector Az];
-        legend_string{end+1} =  'A_z';
-        [junk, F]  = csd_odas(Az, Az, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'Az';
-    end
-    plot(t_fast, plot_vector); 
+    plot(t, plot_vector); 
     legend(legend_string,'location','eastoutside')
     ylabel ('[counts]')
+    plt_axes = [plt_axes gca];
     set(gca,'xticklabel',[])
-    set(gca, 'fontsize', 16)
+end
+%
+% check if piezo-accelerometers are fast or slow channels
+if ~isempty(piezo)
+    window_index = window_index + 1;
+    h(window_index)=subplot(windows,1,window_index);
+    plot_vector = [];
+    legend_string = {};
+    it_is_fast = [];
+    ax = piezo;
+    
+    if length(d.(ax{1})) == length(d.t_fast)
+        t = d.t_fast;
+        it_is_fast = true;
+    elseif length(d.(ax{1})) == length(d.t_slow)
+        t = d.t_slow;
+        it_is_fast = false;
+    else
+        t = [];
+    end
+        
+    for ax = piezo
+        plot_vector = [plot_vector d.(ax{1})];
+        legend_string{end+1} = ax{1};
+        if ~isempty(it_is_fast) && it_is_fast
+            [junk, F] = csd_odas(...
+                d.(ax{1}), d.(ax{1}), n_fft, d.fs_fast, [], n_fft/2,'linear');        
+            spectra_fast = [spectra_fast junk];
+            spectra_legend{end+1} = ax{1};        
+        elseif ~isempty(it_is_fast) && ~it_is_fast
+            [junk, F_slow] = csd_odas(...
+                d.(ax{1}), d.(ax{1}), n_fft_slow, d.fs_slow, [], n_fft_slow/2,'linear');
+             spectra_slow = [spectra_slow junk]; 
+             spectra_slow_legend{end+1} = ax{1};        
+        end
+    end
+    plot(t, plot_vector); 
+    legend(legend_string,'location','eastoutside')
+    ylabel ('[counts]')
+    plt_axes = [plt_axes gca];
+    set(gca,'xticklabel',[])
 end
 %
 %____________
-if (exist('C1_dC1','var') || exist('C2_dC2','var'))
-    window_index = window_index + 1;
-    h(window_index)=subplot(windows,1,window_index);
-    plot_vector = [];
-    legend_string = {};
-    if exist('C1_dC1','var')
-        mean_C1_dC1 = mean(C1_dC1);
-        plot_vector = C1_dC1 - mean_C1_dC1;
-        value = num2str(round(abs(mean_C1_dC1)));
-        if mean_C1_dC1<0;
-            C1_string = ['C1\_dC1+' value];
-        else
-            C1_string = ['C1\_dC1-' value];
+if ~isempty(ucond)
+    skip_size = length(d.t_fast) / length(d.(ucond{1}));
+    
+    if mod(skip_size,1) ~= 0
+        warning(['Skipping micro conductivity channels. ' ...
+                 'Invalid positionning of channels in address matrix.\n' ...
+                 'uConductivity samples are not evenly spaced.']);
+    else
+        ucondfast = d.fs_fast / skip_size;
+        ucondfft  = n_fft / skip_size;
+                
+        window_index = window_index + 1;
+        h(window_index)=subplot(windows,1,window_index);
+        plot_vector = [];
+        legend_string = {};
+        for uc = ucond
+            mean_C = mean(d.(uc{1}));
+            plot_vector = [plot_vector d.(uc{1}) - mean_C];
+            legend_string{end+1} = texstr(sprintf('%s%+.0f', uc{1}, -mean_C));
+            [junk, F_ucond]  = csd_odas(d.(uc{1}), d.(uc{1}), ucondfft, ucondfast, [], ucondfft/2,'linear');
+            spectra_ucond = [spectra_ucond junk];
+            name = strsplit(uc{1}, '_d');
+            spectra_ucond_legend{end+1} = name{1};
         end
-        legend_string{end+1} = C1_string;
-        [junk, F]  = csd_odas(C1_dC1, C1_dC1, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'C1';
+        
+        t_fast_ucond = d.t_fast(1:skip_size:length(d.t_fast));
+        plot(t_fast_ucond, plot_vector);
+        legend(legend_string,'location','eastoutside')
+        ylabel ('[counts]')
+        plt_axes = [plt_axes gca];
+        set(gca,'xticklabel',[])
     end
-    if exist('C2_dC2','var')
-        mean_C2_dC2 = mean(C2_dC2);
-        plot_vector = [plot_vector C2_dC2 - mean_C2_dC2];
-        value = num2str(round(abs(mean_C2_dC2)));
-        if mean_C2_dC2<0;
-            C2_string = ['C2\_dC2+' value];
-        else
-            C2_string = ['C2\_dC2-' value];
-        end
-        legend_string{end+1} =  C2_string;
-        [junk, F]  = csd_odas(C2_dC2, C2_dC2, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'C2';
-    end
-
-    plot(t_fast, plot_vector); 
-    legend(legend_string, 'location','eastoutside')
-    ylabel ('[counts]')
-    set(gca,'xticklabel',[])
-    set(gca, 'fontsize', 16)
 end
 
+
 %
-if exist('Mx','var') || exist('My','var') || exist('Mz','var')
+if isfield(d,'Mx') || isfield(d,'My') || isfield(d,'Mz')
     window_index = window_index + 1;
     h(window_index)=subplot(windows,1,window_index);
     plot_vector = [];
     legend_string = {};
-    if exist('Mx','var')
-        plot_vector = [plot_vector Mx];
+    if isfield(d,'Mx')
+        plot_vector = [plot_vector d.Mx];
         legend_string{end+1} = 'M_x';
     end
-    if exist('My','var')
-        plot_vector = [plot_vector My];
+    if isfield(d,'My')
+        plot_vector = [plot_vector d.My];
         legend_string{end+1} = 'M_y';
     end
-    if exist('Mz','var')
-        plot_vector = [plot_vector Mz];
+    if isfield(d,'Mz')
+        plot_vector = [plot_vector d.Mz];
         legend_string{end+1} = 'M_z';
     end
-    plot(t_slow, plot_vector); 
+    plot(d.t_slow, plot_vector); 
     legend(legend_string, 'location','eastoutside')
     ylabel ('[counts]')
-    set(gca, 'fontsize', 16)
+    plt_axes = [plt_axes gca];
     set(gca,'xticklabel',[])
 end
 
+
 %
-if exist('O2','var')
+if isfield(d,'O2')
     window_index = window_index + 1;
     h(window_index)=subplot(windows,1,window_index);
-    plot(t_slow, O2); 
+    plot(d.t_slow, d.O2); 
     legend('O_2 [Hz]', 'location','eastoutside')
+    plt_axes = [plt_axes gca];
     set(gca,'xticklabel',[])
-    set(gca, 'fontsize', 16)
 end
 
+
 %
-if exist('Incl_X','var') || exist('Incl_Y','var') || exist('Incl_T','var')
+if isfield(d,'Incl_X') || isfield(d,'Incl_Y') || isfield(d,'Incl_T')
     window_index = window_index + 1;
     h(window_index)=subplot(windows,1,window_index);
     plot_vector = [];
     legend_string = {};
-    if exist('Incl_X','var')
-        plot_vector = [plot_vector Incl_X];
+    if isfield(d,'Incl_X')
+        plot_vector = [plot_vector d.Incl_X];
         legend_string{end+1} = 'Incl\_X';
     end
-    if exist('Incl_Y','var')
-        plot_vector = [plot_vector Incl_Y];
+    if isfield(d,'Incl_Y')
+        plot_vector = [plot_vector d.Incl_Y];
         legend_string{end+1} = 'Incl\_Y';
     end
-    if exist('Incl_T','var')
-        plot_vector = [plot_vector Incl_T];
+    if isfield(d,'Incl_T')
+        plot_vector = [plot_vector d.Incl_T];
         legend_string{end+1} = 'Incl\_T';
     end
-    plot(t_slow, plot_vector); 
+    plot(d.t_slow, plot_vector); 
     legend(legend_string, 'location','eastoutside')
     ylabel ('[degrees]')
+    plt_axes = [plt_axes gca];
     set(gca,'xticklabel',[])
-    set(gca, 'fontsize', 16)
 end
 
+
 %
-if (exist('T1_dT1','var') || exist('T2_dT2','var'))
-    window_index = window_index + 1;
-    h(window_index)=subplot(windows,1,window_index);
-    plot_vector = [];
-    legend_string = {};
-    if exist('T1_dT1','var')
-        mean_T1_dT1 = mean(T1_dT1);
-        plot_vector = T1_dT1 - mean_T1_dT1;
-        value = num2str(round(abs(mean_T1_dT1)));
-        if mean_T1_dT1<0;
-            T1_string = ['T1\_dT1+' value];
-        else
-            T1_string = ['T1\_dT1-' value];
+if ~isempty(therm)
+    % Sometimes the thermister channel is not fast.  Trim the time vector
+    % accordingly.
+    skip_size = length(d.t_fast) / length(d.(therm{1}));
+    
+    if mod(skip_size,1) ~= 0
+        warning(['Skipping thermisters. ' ...
+                 'Invalid positionning of channels in address matrix.\n' ...
+                 'Thermister samples are not evenly spaced.']);
+    else
+        thermfast = d.fs_fast / skip_size;
+        thermfft  = n_fft / skip_size;
+                
+        window_index = window_index + 1;
+        h(window_index)=subplot(windows,1,window_index);
+        plot_vector = [];
+        legend_string = {};
+        for t = therm
+            mean_T = mean(d.(t{1}));
+            plot_vector = [plot_vector d.(t{1}) - mean_T];
+            legend_string{end+1} = texstr(sprintf('%s%+.0f', t{1}, -mean_T));
+            [junk, F_therm]  = csd_odas(d.(t{1}), d.(t{1}), thermfft, thermfast, [], thermfft/2,'linear');
+            spectra_therm = [spectra_therm junk];
+            name = strsplit(t{1}, '_d');
+            spectra_therm_legend{end+1} = name{1};
         end
-        legend_string{end+1} = T1_string;
-        [junk, F]  = csd_odas(T1_dT1, T1_dT1, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'T1';
+        
+        t_fast_therm = d.t_fast(1:skip_size:length(d.t_fast));
+        plot(t_fast_therm, plot_vector);
+        legend(legend_string,'location','eastoutside')
+        ylabel ('[counts]')
+        plt_axes = [plt_axes gca];
+        set(gca,'xticklabel',[])
     end
-    if exist('T2_dT2','var')
-        mean_T2_dT2 = mean(T2_dT2);
-        plot_vector = [plot_vector T2_dT2 - mean_T2_dT2];
-        value = num2str(round(abs(mean_T2_dT2)));
-        if mean_T2_dT2<0;
-            T2_string = ['T2\_dT2+' value];
-        else
-            T2_string = ['T2\_dT2-' value];
-        end
-        legend_string{end+1} = T2_string;
-        [junk, F]  = csd_odas(T2_dT2, T2_dT2, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'T2';
-    end
-
-    plot(t_fast, plot_vector); 
-    legend(legend_string, 'location','eastoutside')
-    ylabel ('[counts]')
-    set(gca,'xticklabel',[])
-    set(gca, 'fontsize', 16)
 end
 
+
 %
-if (exist('sh1','var') || exist('sh2','var'))
+if ~isempty(shear)
     window_index = window_index + 1;
     h(window_index)=subplot(windows,1,window_index);
     plot_vector = [];
     legend_string = {};
-    if exist('sh1','var')
-        plot_vector = sh1;
-        legend_string{end+1} = 'sh1';
-        [junk, F]  = csd_odas(sh1, sh1, n_fft, fs_fast, [], n_fft/2,'linear');
+    for sh = shear
+        plot_vector = [plot_vector d.(sh{1})];
+        legend_string{end+1} = sh{1};
+        [junk, F] = csd_odas(d.(sh{1}), d.(sh{1}), n_fft, d.fs_fast, [], n_fft/2,'linear');
         spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'sh1';
+        spectra_legend{end+1} = sh{1};        
     end
-    if exist('sh2','var')
-        plot_vector = [plot_vector sh2];
-        legend_string{end+1} = 'sh2';
-        [junk, F]  = csd_odas(sh2, sh2, n_fft, fs_fast, [], n_fft/2,'linear');
-        spectra_fast = [spectra_fast junk];
-        spectra_legend{end+1} = 'Sh2';
-    end
-
-    plot(t_fast, plot_vector); 
-    legend(legend_string, 'location','eastoutside')
+    plot(d.t_fast, plot_vector); 
+    legend(legend_string,'location','eastoutside')
     ylabel ('[counts]')
+    plt_axes = [plt_axes gca];
     set(gca,'xticklabel',[])
-    set(gca, 'fontsize', 16)
 end
 
+
 %
-if (exist('P','var') || exist('P_dP','var') || exist('P_hres','var'))
+if isfield(d,'P') || isfield(d,'P_dP')
     window_index = window_index + 1;
     h(window_index)=subplot(windows,1,window_index);
     plot_vector = [];
     legend_string = {};
-    if exist('P','var')
-        plot_vector = P;
+    if isfield(d,'P')
+        plot_vector = d.P;
         legend_string{end+1} = 'P';
     end
-    if exist('P_dP','var')
-        plot_vector = [plot_vector P_dP];
+    if isfield(d,'P_dP')
+        plot_vector = [plot_vector d.P_dP];
         legend_string{end+1} = 'P\_dP';
         [junk, F_slow]  = ...
-            csd_odas(P_dP, P_dP, n_fft_slow, fs_slow, [], n_fft_slow/2,'linear');
-        spectra_slow = junk;
-        spectra_legend{end+1} = 'P\_dP';
-    end
-    if exist('P_hres','var')
-        plot_vector = [plot_vector P_hres];
-        legend_string{end+1} = 'P\_hres';
+            csd_odas(d.P_dP, d.P_dP, n_fft_slow, d.fs_slow, [], n_fft_slow/2,'linear');
+        spectra_slow = [spectra_slow junk];
+        spectra_slow_legend{end+1} = 'P\_dP';
     end
 
-    plot(t_slow, plot_vector); 
+    plot(d.t_slow, plot_vector); 
     legend(legend_string, 'location','eastoutside')
     ylabel ('[counts]')
+    plt_axes = [plt_axes gca];
     set(gca,'xticklabel',[])
-    set(gca, 'fontsize', 16)
 end
 
-subplot(windows,1,1)
-title(title_string)
+title(h(1),title_string)
 
-subplot(windows,1,windows)
-xlabel('t [s]')
+xlabel(h(end),'t [s]')
 set(gca,'xticklabelmode','auto')
-
+ 
 position = zeros(window_index,4);
 for k = 1:window_index
     position(k,:) = get(h(k), 'position');
@@ -452,73 +568,114 @@ for k=1:window_index
     set(h(k), 'position',position(k,:))
 end
 
-fig_name = [figure_file_name '_Fig_' num2str(figure_num)];
-if exist('export_fig.m', 'file') == 2
-    export_fig(gcf, fig_name, '-pdf', '-transparent') 
+% Turn on grids for each plot.
+for i = 1:length(plt_axes)
+    grid(plt_axes(i), 'on');
 end
-saveas(gcf, fig_name, 'fig')
+
+linkaxes(plt_axes,'x')
+
+% min_extents = inf;
+% for i = 1:length(plt_axes)
+%     lim = get(plt_axes(i), 'xlim');
+%     if lim(2) < min_extents, min_extents = lim(2); end
+% end
+% for i = 1:length(plt_axes)
+%     set(plt_axes(i), 'xlim', [0 min_extents]);
+%     set(plt_axes(i), 'ActivePositionProperty', 'outerposition');
+% end
+
+fig_name = [figure_file_name '_Fig_' num2str(figure_num)];
+if genPDF && exist('fig2pdf', 'file')
+    fig2pdf(fig_handle, fig_name, [8.5,10]);
+end
+if genFIG, saveas(fig_handle, fig_name, 'fig'); end
+
+for i = 1:length(plt_axes)
+    set(plt_axes(i), 'xticklabelmode', 'auto');
+end
 
 %
 % Plot if JAC C, T Chlorophyll or Turbidity sensors exist
 windows = 0;
-if exist('Turbidity','var')
+if isfield(d,'Turbidity')
     windows = windows + 1;
 end
-if exist('Chlorophyll','var')
+if isfield(d,'Chlorophyll')
     windows = windows + 1;
 end
-if exist('JAC_T','var')
+if isfield(d,'JAC_T')
     windows = windows + 1;
 end
-if exist('JAC_C','var')
-    windows = windows + 1;
+if isfield(d,'JAC_C')
+    windows = windows + 2;
 end
 window_index = 0;
 if windows > 0
-    figure_position = [20 150  landscape_size];
     figure_num = figure_num + 1;
-    figure_position(1) = figure_position(1)+50;
     fig_handle = figure(figure_num);
     clf(fig_handle)
-    set(fig_handle,'Position',figure_position);
+    plt_axes = [];
     
-    if exist('Turbidity','var')
+    if isfield(d,'Turbidity')
         window_index = window_index + 1;
         h(window_index)=subplot(windows,1,window_index);
-        plot(t_fast, Turbidity); 
+        plot(d.t_fast, d.Turbidity); 
         legend('Turbidity', 'location','eastoutside')
+        plt_axes = [plt_axes gca];
         set(gca,'xticklabel',[])
         ylabel('[counts]')
-        set(gca, 'fontsize', 16)
     end
-    if exist('Chlorophyll','var')
+    if isfield(d,'Chlorophyll')
         window_index = window_index + 1;
         h(window_index)=subplot(windows,1,window_index);
-        plot(t_fast, Chlorophyll); 
+        plot(d.t_fast, d.Chlorophyll); 
         legend('Chlorophyll', 'location','eastoutside')
+        plt_axes = [plt_axes gca];
         set(gca,'xticklabel',[])
         ylabel('[counts]')
-        set(gca, 'fontsize', 16)
     end
-    if exist('JAC_T','var')
+    if isfield(d,'JAC_T')
         window_index = window_index + 1;
         h(window_index)=subplot(windows,1,window_index);
-        plot(t_slow, JAC_T); 
+        plot(d.t_slow, d.JAC_T); 
         legend('JAC\_T', 'location','eastoutside')
+        plt_axes = [plt_axes gca];
         set(gca,'xticklabel',[])
         ylabel('[counts]')
-        set(gca, 'fontsize', 16)
     end
-    if exist('JAC_C','var')
-        window_index = window_index + 1;
-        h(window_index)=subplot(windows,1,window_index);
-        plot(t_slow, JAC_C); 
-        legend('JAC\_C', 'location','eastoutside')
-        set(gca,'xticklabel',[])
-        ylabel('[counts]')
-        set(gca, 'fontsize', 16)
-    end
+%     if isfield(d,'JAC_C')
+%         window_index = window_index + 1;
+%         h(window_index)=subplot(windows,1,window_index);
+%         plot(d.t_slow, d.JAC_C); 
+%         legend('JAC\_C', 'location','eastoutside')
+%         plt_axes = [plt_axes gca];
+%         set(gca,'xticklabel',[])
+%         ylabel('[counts]')
+%     end
     
+    
+     if isfield(d,'JAC_C')
+            window_index = window_index + 1;
+            h(window_index)=subplot(windows,1,window_index);
+            plot(d.t_slow, bitshift(d.JAC_C, -16)); 
+
+            legend('JAC\_C\_I', 'location','eastoutside')
+            plt_axes = [plt_axes gca];
+            set(gca,'xticklabel',[])
+            ylabel('[counts]')
+     end
+     if isfield(d,'JAC_C')
+            window_index = window_index + 1;
+            h(window_index)=subplot(windows,1,window_index);
+            plot(d.t_slow, rem(d.JAC_C,2^16)); 
+            legend('JAC\_C\_V', 'location','eastoutside')
+            plt_axes = [plt_axes gca];
+            set(gca,'xticklabel',[])
+            ylabel('[counts]')
+     end
+     
+     
     subplot(windows,1,1)
     title(title_string)
 
@@ -537,40 +694,184 @@ if windows > 0
     for k=1:window_index
         set(h(k), 'position',position(k,:))
     end
+    
+    % Turn on grids for each plot.
+    for i = 1:length(plt_axes)
+        grid(plt_axes(i), 'on');
+    end
+
 
     fig_name = [figure_file_name '_Fig_' num2str(figure_num)];
-    %fig2pdf( fig_handle, fig_name );
-    saveas(gcf, fig_name, 'fig')
+    if genPDF && exist('fig2pdf', 'file')
+        fig2pdf(fig_handle, fig_name, [8.5,10]);
+    end
+    if genFIG, saveas(fig_handle, fig_name, 'fig'); end
+    
+    for i = 1:length(plt_axes)
+        set(plt_axes(i), 'xticklabelmode', 'auto');
+    end
 end
 %----------------------------------------------------------------
 %spectra
 
-title_string = { texstr(sprintf('%s; %d_%02d_%02d, %02d:%02d UTC', ...
-                                filename, Year, Month, Day, Hour, Minute)),
-                 texstr(sprintf('SN_%s, Spectra', SN))};
+title_string = texstr( { sprintf('%s; %s', filename, date_time_str)
+                         sprintf('SN_%s, Spectra', SN) } );
 
 figure_num = figure_num + 1;
-figure_position(1) = figure_position(1)+50;
 fig_handle = figure(figure_num);
-%set(fig_handle,'paperorientation','landscape','Position',figure_position);clf
-set(fig_handle,'Position',figure_position);clf
+clf(fig_handle)
 
-h = loglog(F,spectra_fast, F_slow, spectra_slow);
-legend(spectra_legend, 'location','eastoutside');
+loglog(F, spectra_fast, ...
+       F_therm, spectra_therm, ...
+       F_ucond, spectra_ucond, ...
+       F_slow, spectra_slow);
+   
+grid('on');
+
+legend([spectra_legend spectra_therm_legend spectra_ucond_legend spectra_slow_legend], ...
+       'location','eastoutside');
+
 title(title_string)
-for index = 1:length(h)
-    set(h(index),'linewidth', 1.5)
-end
 
 xlim_lower = 0.9/fft_length_in_seconds;
-xlim_upper = 1.1*fs_fast/2;
+xlim_upper = 1.1*d.fs_fast/2;
 set(gca, 'ylim', [1e-4 1e2], 'xlim',[xlim_lower xlim_upper])
-ylabel('[counts Hz^{-1}]')
+ylabel('[counts^2 Hz^{-1}]')
 xlabel('\it f \rm [Hz]')
-set(gca, 'fontsize', 16)
 
 fig_name = [figure_file_name '_Fig_' num2str(figure_num)];
-if exist('export_fig.m', 'file') == 2
-    export_fig(gcf, fig_name, '-pdf', '-transparent') 
+if genPDF && exist('fig2pdf', 'file')
+    fig2pdf(fig_handle, fig_name, [10.5,7]);
 end
-saveas(gcf, fig_name, 'fig')
+if genFIG, saveas(fig_handle, fig_name, 'fig'); end
+
+%----------------------------------------
+% Handle a JAC Electro-magnetic current meter
+% First the current to the sensor
+
+if isfield(d,'EMC_Cur')  || isfield(d,'EM_Cur') % are measuring the current to the EMC transducer
+
+    figure_num = figure_num + 1;
+    fig_handle = figure(figure_num);
+    clf(fig_handle)
+    title_string = texstr( { sprintf('%s; %s', filename, date_time_str)
+                         sprintf('SN_%s', SN) } );
+    
+    if isfield(d,'EM_Cur'), d.EMC_Cur = d.EM_Cur; end
+%-----
+    h(1) = subplot(3,1,1);
+    
+    plot(d.t_fast, d.EMC_Cur);
+    
+    grid('on');
+    legend('EMC\_Cur', 'location','eastoutside');
+    title(title_string)
+    ylabel('[counts]')
+    xlabel('\it t \rm [s]')
+    set(gca,'xticklabelmode','auto')
+    
+%-----
+    h(2) = subplot(3,1,2); % show only the first second of data
+    
+    plot(d.t_fast, d.EMC_Cur);
+    
+    grid('on');
+    legend('EMC\_Cur', 'location','eastoutside');
+    set(gca, 'xlim', [0 1])
+    ylabel('[counts]')
+    xlabel('\it t \rm [s]')
+    set(gca,'xticklabelmode','auto')
+    
+%-----
+    h(3) = subplot(3,1,3);
+    
+    fft_length_in_seconds = 4;
+    n_fft = round(fft_length_in_seconds*d.fs_fast); % length of fft for spectra in points
+    n_fft_slow = round(n_fft*d.fs_slow/d.fs_fast); % length of fft for spectra of slow channels
+
+    d.EMC_Cur = d.EMC_Cur - mean(d.EMC_Cur); % subtract mean for better looking spectrum
+    [P_EMC_Cur, F] = csd_odas(d.EMC_Cur, [], n_fft, d.fs_fast, [], n_fft/2,'linear');
+    
+    loglog(F, P_EMC_Cur)
+    set(gca,'ylim', [1e-5 1e10])
+    set(gca,'xlim', [0.9*F(2) 1.1*F(end)])
+    
+    grid('on');
+    legend('EMC\_Cur', 'location','eastoutside');
+    ylabel('[counts^2 Hz^{-1}]')
+    xlabel('\it f \rm [Hz]')
+    set(gca,'xticklabelmode','auto')
+    
+    
+%     position = zeros(3,4);
+%     for k = 1:3
+%         position(k,:) = get(h(k), 'position');
+%     end
+%     
+%     min_width = min(position(:,3));
+%     position(:,3) = 0.95*min_width;% 100% causes problems on right edge
+%     
+%     for k=1:3
+%         set(h(k), 'position',position(k,:))
+%     end
+    
+    fig_name = [figure_file_name '_Fig_' num2str(figure_num)];
+    if genPDF && exist('fig2pdf', 'file')
+        fig2pdf(fig_handle, fig_name, [10.5,7]);
+    end
+    if genFIG, saveas(fig_handle, fig_name, 'fig'); end
+end
+
+% Handle a JAC Electro-magnetic current meter
+% Second the signal from the sensor itself
+
+
+if isfield(d,'U_EM')  % are measuring the current to the EMC transducer
+    
+    figure_num = figure_num + 1;
+    fig_handle = figure(figure_num);
+    clf(fig_handle)
+    
+    h(1) = subplot(2,1,1);
+    
+    plot(d.t_slow, d.U_EM);
+    
+    grid('on');
+    legend('U\_EM', 'location','eastoutside');
+    title(title_string)
+    ylabel('[counts]')
+    xlabel('\it t \rm [s]')
+    set(gca,'xticklabelmode','auto')
+    
+    h(2) = subplot(2,1,2);
+    
+    [P_U_EM, F] = csd_odas(...
+        d.U_EM, [], n_fft_slow, d.fs_slow, [], n_fft_slow/2,'linear');
+    
+    loglog(F, P_U_EM)
+    
+    grid('on');
+    legend('U\_EM', 'location','eastoutside');
+    ylabel('[counts^2 Hz^{-1}]')
+    xlabel('\it f \rm [Hz]')
+    set(gca,'xticklabelmode','auto')
+    
+    
+    position = zeros(2,4);
+    for k = 1:2
+        position(k,:) = get(h(k), 'position');
+    end
+    
+    min_width = min(position(:,3));
+    position(:,3) = 0.95*min_width;% 100% causes problems on right edge
+    
+    for k=1:2
+        set(h(k), 'position',position(k,:))
+    end
+    
+    fig_name = [figure_file_name '_Fig_' num2str(figure_num)];
+    if genPDF && exist('fig2pdf', 'file')
+        fig2pdf(fig_handle, fig_name, [10.5,7]);
+    end
+    if genFIG, saveas(fig_handle, fig_name, 'fig'); end
+end

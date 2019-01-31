@@ -25,8 +25,11 @@
 % * 2012-04-23 (WID) Updated to be case insensitive.  Simplified loops.
 % * 2012-07-19 (WID) simplified loop
 % * 2015-01-29 (WID) added match_file for use with calibration reports
+% * 2017-05-14 (WID) add option to ignore extensions - for non-P files
 
-function latest_file = get_latest_file( match_file )
+function latest_file = get_latest_file( match_file, ignore_ext )
+
+if nargin < 2, ignore_ext = false; end
 
 % Set initial value to zero so an empty string is returned if no files exist.
 newest.datenum = 0;
@@ -38,8 +41,14 @@ if nargin < 1
 end
 
 % Append the match string 
-for file = [dir([match_file '.p'])' dir([match_file '.P'])']
-  if file.datenum > newest.datenum, newest = file; end
+if ignore_ext
+    for file = dir(match_file)
+        if file.datenum > newest.datenum, newest = file; end
+    end
+else
+    for file = [dir([match_file '.p'])' dir([match_file '.P'])']
+        if file.datenum > newest.datenum, newest = file; end
+    end
 end
 
 latest_file = newest.name;

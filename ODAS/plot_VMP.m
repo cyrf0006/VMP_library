@@ -1,5 +1,5 @@
 %% plot_VMP
-% Simple real-time plots of raw data collected with a VMP
+% Simple real-time plots of raw data collected with a VMP.
 %%
 % <latex>\index{Functions!plot\_VMP}</latex>
 %
@@ -110,6 +110,7 @@
 % * 2013-03-01 WID include performance improvements and decimate fix.
 % * 2013-06-29 WID real-time instrument fix - indexing byte/word problem
 % * 2015-10-31 RGL. Changed documentation.
+% * 2016-11-09 RGL. Removed setting of default font size.
 
 
 function plot_VMP(fileName)
@@ -139,14 +140,19 @@ if isempty(max_plot_length_in_records), max_plot_length_in_records=100; end
 % Note: offset values given in units of 1000 counts.
 %       fast values:
 tmp_f_vars   = {'Ax','Ay','T1_dT1','C1_dC1','Sh1','Sh2'}; 
-tmp_f_nums   = [  1    2      5        7       8     9 ];
+tmp_f_nums   = [  1    2      5        65      8     9 ];
 tmp_f_scale  = [  1    1      1        1       1     1 ];
 tmp_f_offset = [-30  -25    -10      -10       0    10 ] * 1000;
 %       slow values:
-tmp_s_vars   = { 'P','P_dP', 'PV', 'V_Bat', 'Incl_Y', 'Incl_X'};
-tmp_s_nums   = [ 10    11     12      32        40        41  ];
-tmp_s_scale  = [ 10    10      1       1         1        10  ];
-tmp_s_offset = [-50   -50    -20      20        30        30  ] * 1000;
+% tmp_s_vars   = { 'P','P_dP', 'PV', 'V_Bat', 'Incl_Y', 'Incl_X'};
+% tmp_s_nums   = [ 10    11     12      32        40        41  ];
+% tmp_s_scale  = [ 10    10      1       1         1        10  ];
+% tmp_s_offset = [-50   -50    -20      20        30        30  ] * 1000;
+
+tmp_s_vars   = { 'P','P_dP', 'JAC_C', 'JAC_T'};
+tmp_s_nums   = [ 10    11     49         50];
+tmp_s_scale  = [ 10    10      1          1];
+tmp_s_offset = [-50   -50     10         20] * 1000;
 
 for x = 1:length(tmp_f_vars),
     fast_vars(x).name   = tmp_f_vars{x};
@@ -161,7 +167,7 @@ for x = 1:length(tmp_s_vars),
     slow_vars(x).offset = tmp_s_offset(x);
 end
 
-set(0,'Defaultaxesfontsize',10,'Defaulttextfontsize',10);
+%set(0,'Defaultaxesfontsize',10,'Defaulttextfontsize',10);
 
 % Factors by which to decimate fast & slow data for plotting (decimation is
 % used to speed up plotting of long records)
@@ -402,9 +408,9 @@ while 1
         
     % On the first record, draw the plots and add the legend.
     if record_counter == 1
-        hh1=plot(Y_all,t_all);
-        hh2=plot(Y2_all,t2_all);
-        l = legend(leg_text,-1);
+        hh1=plot(Y_all,t_all,'linewidth',1);
+        hh2=plot(Y2_all,t2_all,'linewidth',1.5);
+        l = legend(leg_text,'location','eastoutside');
         set(l, 'FontName', 'Courier');
     end
     

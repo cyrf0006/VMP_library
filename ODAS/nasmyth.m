@@ -71,7 +71,7 @@
 % # Oakey, N. S., 1982: J. Phys. Ocean., 12, 256-271.
 % # McMillan, J.M., A.E. Hay, R.G. Lueck and F. Wolk, 2016: Rates of
 % dissipation of turbulent kinetic energy in a high Reynolds Number tidal
-% channel. J. Atmos. and Oceanic. Techno., 33, TBD.
+% channel. J. Atmos. and Oceanic. Techno., 33, 817-837.
 
 % *Version History:*
 %

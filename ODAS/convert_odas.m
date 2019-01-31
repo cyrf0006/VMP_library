@@ -7,7 +7,8 @@
 %  [phys, units] = convert_odas(X, name, empty, config, ver )
 %
 % * [X] Data vector to convert.
-% * [name] Name of the channel containing the calibration coefficients.
+% * [name] Name of the channel containing the calibration coefficients or
+%       cell array of names if coefficients exist in multiple channels.
 % * [empty] Parameter ignored unless exactly 3 parameters are used in the
 %       function call. When three parameters are used, it is assumed
 %       that this parameter contains what would have been provided within
@@ -30,8 +31,12 @@
 %
 % Information required to perform the conversion from counts to physical
 % units is contained within the configuration string. Users must provide
-% convert_odas with the configuration string and the channel section name
-% name parameter. The convert_odas function will then extract the
+% convert_odas with the configuration string and the channel section name.
+% The channel section name can be either a string or a cell array of
+% strings. When calibration coefficients exist in multiple channels, the
+% cell array should be used. If duplicate parameters exist, preference is
+% given to the parameter that is found first when scanning the cell array
+% from front to back. The convert_odas function will then extract the
 % calibration coefficients and perform the conversion.
 %
 % Different types of channels use different conversion algorithms. The
@@ -44,8 +49,8 @@
 % types by suppling their own conversion functions. See the example
 % included within this function for more details.
 %
-% For detailed information on the conversion from raw data to
-% physical units, please see section $\ref{sec:channel_types}$.
+% For detailed information on the conversion from raw data [counts] to
+% physical units, please see Section $\ref{sec:channel_types}$.
 %
 %%% Examples
 %
@@ -126,8 +131,24 @@
 %                    arguments - works with just 3.
 % * 2015-07-26 (WID) added support for using a structure for the config
 %                    input. Modified documentation.  Added more comments.
-% * 2012-10-27 (RGL) Minor documentation corrections.
-% * 2012-11-12 (RGL) Added type piezo to the conversion.
+% * 2015-10-27 (RGL) Minor documentation corrections.
+% * 2015-11-12 (RGL) Added type piezo to the conversion.
+% * 2015-06-24 (RGL) Added type jac_emc.
+% * 2017-01-23 (WID) Removed jac_emc and replaced with two types - aem1g_a
+%                    for analog output and aem1g_d for digital output. 
+%                    Old type still supported but a depreciated warning is 
+%                    generated.
+% * 2017-01-25 (WID) Added warning for incorrect A,B coefficients in aem1g.
+% * 2017-03-18 (WID) Support for rsijac_c and rsijac_t types.
+% * 2017-03-23 (WID) Corrected rsijac_c and rsijac_t types - note they will
+%                    change in the future.
+% * 2017-04-26 (WID) Added support for RINKO FT instruments, model name
+%                    ARO-FT, with types aroft_o2 and aroft_t.
+% * 2017-04-25 (WID) Temperary fix for buggy RINKO RS232
+% * 2017-05-17 (WID) Final corrections for RSIJAC-CT sensors.
+% * 2017-05-18 (WID) Final corrections for RSIJAC-CT + default values for
+%                    ADIS inclinometer thermistor.
+
 
 function [X_phys, units] = convert_odas(X, name, empty, config, ver )
 
@@ -137,6 +158,12 @@ if nargin < 3
     error('Invalid number of input arguments.');
 elseif nargin == 3
     config = empty;
+end
+
+% Turn name into a cell array if it is a string.  This is to facilitate
+% extracting coefficients from multiple channel names - such as T and T_dT.
+if ischar(name)
+    name = {name};
 end
 
 % Allow the configuration string to be passed in within a structure.  This
@@ -158,14 +185,22 @@ cfg = setupstr( config );
 
 % Copy the parameters from the setup file into a "coef" structure to allow
 % for easier access.
-[S,K,V] = setupstr(cfg, name, '', '');
-for i = 1:length(K)
-    try V{i} = eval(V{i}); catch, end
-    try params.(K{i}) = V{i}; catch, end
+for chname = name
+    [S,K,V] = setupstr(cfg, chname, '', '');
+    for i = 1:length(K)
+        try V{i} = eval(V{i}); catch, end
+        try
+            if ~isfield('params', K{i})
+                params.(K{i}) = V{i};
+            end
+        catch
+        end
+    end
 end
 
+
 % coefficient names correspond to the parameter names used in the setup file
-odas_type = setupstr(cfg, name, 'type');
+odas_type = setupstr(cfg, params.name, 'type');
 
 extName = ['odas_' odas_type{1}];
 intName = ['odas_' odas_type{1} '_internal'];
@@ -229,6 +264,53 @@ function [physical, units] = odas_jac_t_internal( input, params )
     physical = polyval(polyVals, input);
 end
 
+function [physical, units] = odas_rsijac_c_internal( input, params )
+    units = '[ ms/cm ]';
+    try df     = params.division_factor; catch, df     = 2^28;      end
+    try gain   = params.gain;            catch, gain   = 10.88/100; end
+    try offset = params.y_offset;        catch, offset = 2.86e-7;   end
+    try a      = params.a;               catch, a      = 0;         end
+    try b      = params.b;               catch, b      = 1;         end
+
+    % Input values are in Q3.28 fixed-point format with implied decimal
+    % point. Convert to floating point.
+    counts = input / df;
+
+    % Apply polynomial correction for electronics calibration.
+    counts = polyval([b a], counts);
+
+    % Conductivity formula
+    physical = (counts * gain - offset) / params.cell_constant;
+
+    % Return in units of ms/cm
+    physical = physical * 10;
+end
+
+function [physical, units] = odas_rsijac_t_internal( input, params )
+    units = '[ C ]';
+    t0 = params.t_0;
+    b1 = params.beta_1;
+    b2 = params.beta_2;
+    b3 = params.beta_3;
+    try df = params.division_factor; catch, df = 2^28; end
+    try a  = params.a;               catch, a  = 0;    end
+    try b  = params.b;               catch, b  = 1;    end
+
+    % Input values are in Q3.28 fixed-point format with implied decimal
+    % point. Convert to floating point.
+    counts = input / df;
+    
+    % Apply polynomial correction for electronics calibration.
+    counts = polyval([b a], counts);
+
+    kelvin = 1 ./ (1./t0 + ...
+                   1./b1*power(log(counts),1) + ...
+                   1./b2*power(log(counts),2) + ...
+                   1./b3*power(log(counts),3) );
+            
+    physical = kelvin - 273.15;
+end
+
 function [physical, units] = odas_xmp_therm_internal( input, params )
     units = '[ ^{\circ}C ]';
     ADC_FS = 4.096;
@@ -238,8 +320,8 @@ function [physical, units] = odas_xmp_therm_internal( input, params )
     a = 0; % offset
     b = 1; % slope
     Z = ((input - a)/b) * (ADC_FS / 2^ADC_Bits)*2/(Gain*E_B);
-    n = find(Z >  0.6); if ~isempty(n), Z(n) =  0.6; end; % prevents taking log of negative numbers
-    n = find(Z < -0.6); if ~isempty(n), Z(n) = -0.6; end
+    Z(Z >  0.6) =  0.6; % prevents taking log of negative numbers
+    Z(Z < -0.6) = -0.6;
     X_phys = (1-Z) ./ (1+Z); %this is the resistance ratio
     X_phys = 1/params.coef0 + (1/params.coef1)*log(X_phys);
     physical = (1 ./X_phys) - 273.15; %temperature in deg C
@@ -356,7 +438,7 @@ end
 
 
 function [physical, units] = odas_Alec_EMC_internal( input, params )
-    units = '[ m / 2 ]';
+    units = '[ m / s ]';
     physical = polyval([params.coef1 params.coef0],input);
 end
 
@@ -376,8 +458,11 @@ end
 
 function [physical, units] = odas_inclt_internal( input, params )
     units = '[ deg C ]';
+    % Set default coefficients for ADIS temperature that will never change.
+    try a = params.coef0; catch, a = 624;   end
+    try b = params.coef1; catch, b = -0.47; end
     [raw, old_flag, error_flag] = adis(input);
-    physical = polyval([params.coef1 params.coef0],raw);
+    physical = polyval([b a],raw);
 end
 
 
@@ -390,15 +475,16 @@ end
 function [physical, units] = odas_voltage_internal( input, params )
     units = '[ V ]';
     try zero = params.adc_zero; catch, zero = 0; end
-    physical = (zero + input * params.adc_fs/2^params.adc_bits) / params.g;
+    try gain = params.g;        catch, gain = 1; end
+    physical = (zero + input * params.adc_fs/2^params.adc_bits) / gain;
 end
 
 
 function [physical, units] = odas_therm_internal( input, params )
     units = '[ deg C ]';
     Z = ((input - params.a)/params.b) * (params.adc_fs/2^params.adc_bits)*2/(params.g*params.e_b);
-    n = find(Z >  0.6); if ~isempty(n), Z(n) =  0.6; end; % prevents taking log of negative numbers
-    n = find(Z < -0.6); if ~isempty(n), Z(n) = -0.6; end
+    Z(Z >  0.6) =  0.6; % prevents taking log of negative numbers
+    Z(Z < -0.6) = -0.6;
     physical = (1-Z) ./ (1+Z); %this is the resistance ratio
     Log_R = log(physical);
     if isfield(params, 'beta')
@@ -423,8 +509,8 @@ function [physical, units] = odas_t_ms_internal( input, params )
     try zero = params.adc_zero; catch, zero = 0; end
     Z = input * (params.adc_fs/2^params.adc_bits) + zero; % Turn input into a voltage
     Z = ((Z - params.a)/params.b) *2 / (params.g*params.e_b);
-    n = find(Z >  0.6); if ~isempty(n), Z(n) =  0.6; end; % prevents taking log of negative numbers
-    n = find(Z < -0.6); if ~isempty(n), Z(n) = -0.6; end
+    Z(Z >  0.6) =  0.6; % prevents taking log of negative numbers
+    Z(Z < -0.6) = -0.6;
     physical = (1-Z) ./ (1+Z); %this is the resistance ratio
     Log_R = log(physical);
     if isfield(params, 'beta')
@@ -486,6 +572,105 @@ function [physical, units] = odas_vector_internal( input, params )
 end
 
 
+function [physical, units] = odas_jac_emc_internal( input, params )
+    units = '[ m / s ]';
+    % First convert signal to a voltage
+    % zero = Voltage of digitizer virtual ground wrt the input signal
+    %        ground.
+    try bias = params.bias; catch, bias = 0; end
+    V = params.adc_zero + input * (params.adc_fs / 2^params.adc_bits);
+    % Next convert voltage to velocity, in m / s.
+    % Remember to divide coefficents by 100 for cm/s to m/s.
+    a = params.a / 100;
+    b = params.b / 100;
+    V = a + b * V;
+    physical = V - bias;
+    warning(['The type "jac_emc" is depreciated.  Please change your ' ...
+             'configuration file to reference type "aem1g_a" in place ' ...
+             'of "jac_emc".']);
+end
+
+
+function [physical, units] = odas_aem1g_a_internal( input, params )
+    units = '[ m / s ]';
+    % First convert signal to a voltage
+    % zero = Voltage of digitizer virtual ground wrt the input signal
+    %        ground.
+    try bias = params.bias;     catch, bias = 0;                 end
+    try zero = params.adc_zero; catch, zero = params.adc_fs / 2; end
+    V = zero + input * (params.adc_fs / 2^params.adc_bits);    
+    % Next convert voltage to velocity, in m / s.
+    % Remember to divide coefficents by 100 for cm/s to m/s.
+    a = params.a / 100;
+    b = params.b / 100;
+    V = a + b * V;
+    physical = V - bias;
+    if b < 1
+        warning(['Provided A, B coefficients are not correct.  Each ' ...
+                 'instrument provides two sets of calibration results ' ...
+                 '- one for analog output and one for digital output. ' ...
+                 'The analog values should be used for this channel type.']);
+    end
+end
+
+
+function [physical, units] = odas_aem1g_d_internal( input, params )
+    units = '[ m / s ]';
+    % Data originates as 16 bit unsigned values but, by default, is read as
+    % 16 bit signed values then converted to doubles.  Now we convert any
+    % negative values back into unsigned values.
+    input(input < 0) = input(input < 0) + 2^16;
+    % Next convert voltage to velocity, in m / s.
+    % Remember to divide coefficents by 100 for cm/s to m/s.
+    a = params.a / 100;
+    b = params.b / 100;
+    physical = a + b * input;
+    if b > 1
+        warning(['Provided A, B coefficients are not correct.  Each ' ...
+                 'instrument provides two sets of calibration results ' ...
+                 '- one for analog output and one for digital output. ' ...
+                 'The digital values should be used for this channel type.']);
+    end
+end
+
+
+function [physical, units] = odas_aroft_o2_internal( input, params )
+    % Type used for RINKO FT fast optical DO sensors with RS232 output.
+    units = '[  ]';
+    % Data originates as 16 bit unsigned values but, by default, is read as
+    % 16 bit signed values then converted to doubles.  Now we convert any
+    % negative values back into unsigned values.
+    input(input < 0) = input(input < 0) + 2^16;
+    
+    % Temperary fix of a buggy RS232 receiver.  Filter obvious glitches.
+    for i=2:length(input)
+        if input(i) <= 50 || input(i) >= 2^16 - 50
+            input(i) = input(i-1);
+        end
+    end
+    
+    physical = input/100;
+end
+
+function [physical, units] = odas_aroft_t_internal( input, params )
+    % Type used for RINKO FT fast optical DO sensors with RS232 output.
+    units = '[ deg C ]';
+    % Data originates as 16 bit unsigned values but, by default, is read as
+    % 16 bit signed values then converted to doubles.  Now we convert any
+    % negative values back into unsigned values.
+    input(input < 0) = input(input < 0) + 2^16;
+
+    % Temperary fix of a buggy RS232 receiver.  Filter obvious glitches.
+    for i=2:length(input)
+        if input(i) <= 50 || input(i) >= 2^16 - 50
+            input(i) = input(i-1);
+        end
+    end
+    
+    physical = input/1000 - 5;
+end
+
+
 function [physical, units] = odas_amt_o2_internal( input, params )
     % For MicroSquid AMT Dissolved oxygen sensor
     units = '[  ]';
@@ -501,14 +686,14 @@ function [physical, units] = odas_amt_o2_internal( input, params )
     physical = input*adc_fs/2^adc_bits + adc_zero - sig_zero; % now in volts
 
     % Now get the user calibration voltage readings for 0% and 100% oxygen
-    try U0   = params.U0;  catch,  U0   = 0.125; end % nominal no O2 reading
-    try U100 = params.U100; catch, U100 = 2.5  ; end % typical 100% O2 reading
+    try U0   = params.u0;  catch,  U0   = 0.125; end % nominal no O2 reading
+    try U100 = params.u100; catch, U100 = 2.5  ; end % typical 100% O2 reading
 
     % read air pressure (mbar) during calibration
-    try PL = params.PL; catch, PL = 1013; end % nominal air pressure
+    try PL = params.pl; catch, PL = 1013; end % nominal air pressure
 
     % read temperature (celsius) during calibration.
-    try T_cal   = params.T_cal; catch, T_cal = 22; end % nominal lab temperature
+    try T_cal   = params.t_cal; catch, T_cal = 22; end % nominal lab temperature
 
     % Get the water vapour pressure at time of calibration
     Pw_cal = get_wvP(T_cal + 273.15);% Water vapor pressure during calibration

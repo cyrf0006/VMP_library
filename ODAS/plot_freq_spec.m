@@ -1,5 +1,6 @@
-%% plot_freq_spec - EXCLUDED
-% Plot frequency spectra from dissipation structure
+%% plot_freq_spec
+% Plot frequency spectra from dissipation structure. This function is
+% called by ``show_spec.m''
 %%
 % <latex>\index{Functions!show\_freq\_spec}</latex>
 %
@@ -10,7 +11,7 @@
 %       new figure for the plot.
 % * [slice] Segment index from the diss structure that should be plotted.
 % * [diss] Structure containing dissipation information.  All dissipation
-%       information is included but only the segment identified by 'slice'
+%       information is included but only the segment identified by `slice'
 %       is used for the plot.
 % * [titleString] String to pre-pended to each figure title. Use it to help
 %       identify the current profile.  Set to empty string if not needed.
@@ -21,7 +22,7 @@
 % Plot the frequency spectra of shear and acceleration into the specified 
 % axis.
 %
-% This function is called by "show_spec".  The axis input parameter is
+% This function is called by ``show_spec''.  The axis input parameter is
 % used to allow this function to update the "show_spec" figure.  When 
 % called manually, the axis input parameter can be left blank.  This will
 % result in a new figure for the plot.
@@ -42,6 +43,12 @@
 % 2015-11-20 RGL, changed scaling of accelerometers.
 % 2015-11-23 RGL, Rename this function to plot_freq_spec to better reflect
 %     its purpose.
+% 2016-08-30 RGL, Took bold font out of title.
+% 2016-08-31 RGL, Enabled detection of profile direction. For 'horizontal',
+%     the pressure value is changed to a time (since start of file) value. 
+% 2016-12-15 RGL, Changed legend to \nabla, the gradient symbol.
+% 2017-04-28 RGL, Check on scalar spectra was inadequate. Need to also
+%     check if it is empty. 
 
 function ax = plot_freq_spec( ax, slice, diss, titleString )
 
@@ -67,43 +74,51 @@ if isempty(ax),
     ax = axes('Parent',f);
 end
 
-PD = diss.P; % pressure in diss structure
-time = 0;
-
 scalar_names = [];
 we_have_scalar_spectra = false;
 
-if isfield(diss,'scalar_spectra') % we have scalar spectra as well
-     we_have_scalar_spectra = true; % get the 3D matrix of scalar spectra
-     % I assume that the length of the scalar spectra are identical to
-     % those of shear, and that the wavenumber and frequencies are the
-     % same.
-    scalar_names = diss.scalar_vector_list; % The cell array of names for the scalar signals.
+if isfield(diss,'scalar_spectra')
+    if ~isempty(diss.scalar_spectra)
+        % we have scalar spectra as well
+        we_have_scalar_spectra = true; % get the 3D matrix of scalar spectra
+        % I assume that the length of the scalar spectra are identical to
+        % those of shear, and that the wavenumber and frequencies are the
+        % same.
+        scalar_names = diss.scalar_vector_list; % The cell array of names for the scalar signals.
+    end
 end
 
 %%%%
 % The main loop
 
-K = diss.K(:,slice);
-F = diss.F(:,slice);
-method = diss.method(:,slice);
-speed = diss.speed(slice);
-P = diss.P(slice);
-K_max = diss.K_max(:,slice);
-T = diss.T(slice);
+K           = diss.K(:,slice);
+F           = diss.F(:,slice);
+PD          = diss.P(slice); % pressure in diss structure [dbar].
+t           = diss.t(slice); % time since start of file in diss structure [s].
+speed       = diss.speed(slice);
+K_max       = diss.K_max(:,slice);
+T           = diss.T(slice);
+profile_dir = diss.vehicle_info.profile_dir;
+
 Nasmyth_spec = diss.Nasmyth_spec(:,:,slice);
 e = diss.e(:,slice);
 
 P_string = 'P';
 unit_string = 'dBar';
-if time, P_string = 't'; unit_string = 's'; end
+if strcmpi(profile_dir, 'horizontal')
+    P_string = 't'; 
+    unit_string = 's'; 
+    P = t; % use time
+else
+    P = PD; % use pressure
+end
 
 title_string_F = {};
 if ~isempty(titleS), title_string_F{end+1} = titleS; end
-title_string_F{end+1} = 'Frequecy Spectrum';
+title_string_F{end+1} = '\rmFrequecy Spectrum';
 title_string_F{end+1} = sprintf('Index = %i, %s = %0.1f %s, speed = %0.2f m s^{-1}, T = %0.3f^{\\circ}C', ...
-                            slice, P_string, PD(slice), unit_string, speed, T);
-
+                            slice, P_string, P, unit_string, speed, T);
+title_string_F{end+1} = '';
 %%%%
 %_____________________________
 % First the wavenumber Spectra
@@ -185,9 +200,11 @@ if size(diss.AA,2)==3
 end
 
 plot_wish_list = {...
-    'P_Ax', 'P_Ay', 'P_Az', 'P_sh1', 'P_sh2', 'P_sh3', 'P_sh4'};
+    'P_Ax', 'P_Ay', 'P_Az', ...
+    'P_sh1',      'P_sh2',      'P_sh3',      'P_sh4'};
 legend_wish_list = {...
-    'A_x',  'A_y',  'A_z',   'sh_1',  'sh_2',  'sh_3',  'sh_4'};
+    'A_x',  'A_y',  'A_z',...
+    '\nablau_1',  '\nablau_2',  '\nablau_3',  '\nablau_4'};
 
 plot_index = 0;
 plot_list = [];

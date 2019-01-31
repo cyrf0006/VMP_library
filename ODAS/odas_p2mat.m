@@ -55,6 +55,8 @@
 %                [speed_tau] []
 %              [time_offset] 0
 %                  [vehicle] ''
+%             [gradT_method] 'high_pass'
+%             [gradC_method] 'high_pass'
 %
 % You can then change the parameters (which are the fields within the
 % returned structure $\texttt{default\_parameters}$) to values suited to
@@ -84,7 +86,7 @@
 %
 %
 %%% Profiling Speed
-% Parameters used to determine the speed of profiling speed are;
+% Parameters used to determine the speed of profiling speed are:
 %
 % * [constant_speed] Speed used to generate gradients and convert
 %       shear probe data into physical units. Leave empty if a constant
@@ -153,6 +155,16 @@
 % * [constant_temp] Temperature used for calculating the kinematic 
 %       viscosity of water when measured temperature is unreliable, or
 %       unavailable. Default = [ ]. 
+% * [gradT_method] A string containing the method used to calculate the
+%       gradient of temperature. There are two methods -- 'high_pass' and
+%       'first_difference'. The high_pass method applies a high_pass filter
+%       to the pre-emphasized temperature signal to make it a
+%       time-derivative for all frequencies. The first-difference method
+%       uses the high-resolution temperature to estimate the gradient by
+%       way of the first-difference operator. See RSI Technical Note 005
+%       for more information. Default = 'high_pass'.
+% * [gradC_method] Same as gradT_method but for micro-conductivity signals.
+% 
 
 % Version History
 %
@@ -172,6 +184,28 @@
 % - 2015-11-18 RGL Document corrections.
 % - 2015-12-31 WID Oops, forgot about the xmp.
 % - 2016-01-21 WID Fixed bug in trim_preemphasis_name() function.
+% - 2016-06-05 WID Allow the file to be moved into a new folder without
+%                  crashing when loading the MAT file for a second time.
+% - 2016-08-24, RGL, corrected error with checking of parameters of median
+%           filter for Vector velocity data.
+% - 2016-10-07, RGL, The Vector velocity components [U V W] were not being
+%           saved because we forgot to pre-pend a "d." to their names. 
+% - 2016-12-19, RGL, Modified the method for calculating the gradient of
+%           temperature. odas_p2mat now supports 'high_pass' and
+%           'first_difference' methods. 
+% - 2016-12-21, RGL, Modified the method for calculating the gradient of
+%           conductivity. It is now similar to that of temperature
+%           gradient.
+% - 2017-01-12 WID Disabled the fast version of hotel file data vectors.
+% - 2017-01-13 WID Re-enabled fast vector for speed from hotel file.
+% - 2017-01-23 WID Re-enabled fast vector for P from hotel file.
+% - 2017-01-25 WID Added support for JAC EMC source for speed.
+% - 2017-03-23, RGL, spelling mistake in description -- fhigh_pass instead
+%           of high_pass. 
+% - 2018-03-19, JMM, Fixed a bug that would not regenerate .mat file if a
+%           ql_info field changed to from an empty vector. 
+% - 2018-03-19 WID Improved debug output - code simplification. Add type to
+%           list of things to check for.
 %
 % ==============================================
 
@@ -194,7 +228,8 @@ default_MF_st_dev       = 'st_dev';
 default_MF_k            = 4;
 default_MF_k_mag        = 1.7;
 default_MF_extra_points = 0;
-
+default_gradT_method    = 'high_pass';
+default_gradC_method    = 'high_pass';
 
 if ~nargin,
     for d = whos('default_*')',
@@ -227,6 +262,8 @@ addParamValue(p, 'MF_st_dev',      default_MF_st_dev,      val_string);
 addParamValue(p, 'MF_k',           default_MF_k,           val_positive);
 addParamValue(p, 'MF_k_mag',       default_MF_k_mag,       val_positive);
 addParamValue(p, 'MF_extra_points',default_MF_extra_points,val_numeric);
+addParamValue(p, 'gradT_method',   default_gradT_method,   val_string);
+addParamValue(p, 'gradC_method',   default_gradC_method,   val_string);
 
 %input_parameters = join_arguments(varargin); % save for record keeping
 
@@ -280,6 +317,11 @@ errormsg = sprintf('Unable to find input file: %s', p.fname);
 if ~isempty(matname_full)
     disp(['Returning data from existing MAT-file: ' matname_full]);
     result = load(matname_full);
+    % If the MAT and P files were moved, the "fullPath" variable will be
+    % out of date.  Must update with current path.
+    if isfield(result, 'fullPath')
+        result.fullPath = fname_full;
+    end
     status = verify_mat_p_differ(fname_full, result, input_parameters);
     user_input = '';
     if ~isempty(status)
@@ -385,7 +427,10 @@ if ~isempty(p.hotel_file)
         [fast, slow] = extract_vector(hotelFile, field, t_start, d.t_fast, d.t_slow);
         if ~isempty(fast)
             disp(['      vector: "' field '" from hotel file']);
-            d.([field '_fast']) = fast;
+            % Only extract the fast vector for channels "speed" and "P"
+            if strcmpi(field, 'speed') || strcmpi(field, 'P')
+                d.([field '_fast']) = fast;
+            end
             d.([field '_slow']) = slow;
         end
     end
@@ -770,24 +815,64 @@ if ~done && strcmpi(type, 'vector')
     
     % Use median filter to remove flyers.  Filter parameters must be
     % correctly defined.
-    if isempty(MF_threshold) && isempty(MF_st_dev)
+    if isempty(p.MF_threshold) && isempty(p.MF_st_dev)
         error('You must specify MF_threshold when MF_st_dev is empty.');
     end
     
-    if isfinite(p.MF_threshold) && isfinite(p.MF_k)
+    if true
+        % isfinite(p.MF_threshold) && isfinite(p.MF_k)
         [results, d.Vector_bad_points] = ...
             median_filter([U V W], p.MF_threshold, p.MF_len, ...
                           p.MF_extra_points, p.MF_st_dev, p.MF_k);
-        U = results(:,1);
-        V = results(:,2);
-        W = results(:,3);
+        d.U = results(:,1);
+        d.V = results(:,2);
+        d.W = results(:,3);
     end
     
     d.speed_slow = sqrt(U.^2 + V.^2 + W.^2);
-    p.speed_source = 'Recorded U V W';
+    d.speed_source = 'Recorded U V W';
     done = true;
 end
 
+% Speed determined from a AEM1-G electromagnetic velocity sensor on a
+% channel of type 'aem1g_a' or 'aem1g_d'. Using vehicle (such as auv_emc)
+% with speed_algorithm = emc.
+if ~done && strcmpi(type, 'emc')
+    
+    % Find channels using the assumed type.  Use the first channel we find
+    % and ignore the rest.
+    name = '';
+    for t = {'aem1g_a', 'aem1g_d', 'jac_emc'}
+        for ch = setupstr(obj, '', 'type', t{1})
+            % Extract the name from the configuration string - returns 
+            % correct case.
+            chname = char(setupstr(obj, ch{1}, 'name'));
+            if isfield(d, chname)
+                name = chname;
+                break;
+            end
+        end
+        if ~isempty(name), break; end
+    end
+    
+    if isempty(name)
+        error('Unable to find channel of type "aem1g_a" or "aem1g_d".');
+    end
+
+    if isfield(d, [name '_slow']) && isfield(d, [name '_fast'])
+        % Use data amended using a hotel file if available. Such data will
+        % contain a "_fast" and "_slow" postfix to the name.
+        d.speed_fast = d.([name '_fast']);
+        d.speed_slow = d.([name '_slow']);
+    else
+        % Otherwise, use original data when hotel file data not provided.
+        d.speed_fast = interp1_if_req(d.(name), d.t_fast);
+        d.speed_slow = interp1_if_req(d.(name), d.t_slow);
+    end
+    
+    d.speed_source = ['EMC channel: ' name];
+    done = true;
+end
 
 % Last one - vehicle assumes a constant speed.  For example, a stand within
 % a river.
@@ -840,32 +925,119 @@ end
 
 % ------------------------------------------------------------------------
 % ------------------------------------------------------------------------
-%%%%%%%%   GRADIENTS
+%%%%%%%%   SCALAR GRADIENTS
 % ------------------------------------------------------------------------
 % ------------------------------------------------------------------------
 
 % Calculate gradients for temperature and micro-conductivity data vectors.
 % Channels of type therm and ucond that have diff_gain parameters are
 % selected for conversion.
-for t = {'therm','ucond','t_ms','xmp_therm'}
+%
+% This section has been modified to use look only for micro-conductivity signals.
+% for t = {'ucond'}
+%     for ch = setupstr(obj, '', 'type', t{1})
+%         if isempty(setupstr(obj, ch{1}, 'diff_gain')), continue; end
+%         
+%         name = setupstr(obj, ch{1}, 'name');
+%         name = char(name);
+% 
+%         [tok, mat] = regexp(name, '(\w+)_d\1', 'tokens', 'match');
+%         if ~isempty(tok), name = tok{1}{1}; end
+%         
+%         % Gradient source and destination vector names.
+%         src  = [name '_fast'];
+%         dest = ['grad' name];
+% 
+%         % Generate gradient signal/source names
+%         if isfield(d, src)
+%             d.(dest) = [ 0; diff(d.(src)) * d.fs_fast ] ./ d.speed_fast;
+%             d.(dest)(1) = d.(dest)(2);
+%         end
+%     end
+% end
+% 
+% This section for micro-conductivity signals
+% We need the names of the channels with and without pre-emphasis in order
+% to get all of the required coefficients.
+for t = {'ucond'}
     for ch = setupstr(obj, '', 'type', t{1})
+
+        % Skip channels that do not have a "diff_gain" parameter.
         if isempty(setupstr(obj, ch{1}, 'diff_gain')), continue; end
-        
-        name = setupstr(obj, ch{1}, 'name');
-        name = char(name);
 
+        % Extract the name from the configuration string - returns correct case.
+        name = char(setupstr(obj, ch{1}, 'name'));
+        name_with_pre_emphasis = name;
+        
+        % Find channel without pre-emphasis - if it exists.
         [tok, mat] = regexp(name, '(\w+)_d\1', 'tokens', 'match');
-        if ~isempty(tok), name = tok{1}{1}; end
-        
-        % Gradient source and destination vector names.
-        src  = [name '_fast'];
-        dest = ['grad' name];
-
-        % Generate gradient signal/source names
-        if isfield(d, src)
-            d.(dest) = [ 0; diff(d.(src)) * d.fs_fast ] ./ d.speed_fast;
-            d.(dest)(1) = d.(dest)(2);
+        if ~isempty(tok) %&& isfield(d, tok{1}{1})
+            name_without_pre_emphasis = tok{1}{1};
+        else
+            name_without_pre_emphasis = [];
         end
+        
+        % Assign vector name for the result.
+        dest = ['grad' name_with_pre_emphasis];
+        if ~isempty(name_without_pre_emphasis)
+            dest = ['grad' name_without_pre_emphasis];
+        end
+        
+        % Assign input parameters for the gradient function.
+        scalar_vector_with_pre_emphasis       = d.(name_with_pre_emphasis);
+        scalar_info.name_without_pre_emphasis = name_without_pre_emphasis;
+        scalar_info.name_with_pre_emphasis    = name_with_pre_emphasis;
+        scalar_info.fs                        = d.fs_fast;
+        scalar_info.speed                     = d.speed_fast;
+        scalar_info.obj                       = obj;
+        scalar_info.method                    = p.gradC_method;
+
+        % Make the temperature gradient
+        d.(dest) = make_gradC_odas(...
+            scalar_vector_with_pre_emphasis, scalar_info);
+    end
+end
+
+
+% This section for thermistor signals
+% We need the names of the channels with and without pre-emphasis in order
+% to get all of the required coefficients.
+for t = {'therm','t_ms','xmp_therm'}
+    for ch = setupstr(obj, '', 'type', t{1})
+
+        % Skip channels that do not have a "diff_gain" parameter.
+        if isempty(setupstr(obj, ch{1}, 'diff_gain')), continue; end
+
+        % Extract the name from the configuration string - returns correct case.
+        name = char(setupstr(obj, ch{1}, 'name'));
+        name_with_pre_emphasis = name;
+        
+        % Find channel without pre-emphasis - if it exists.
+        [tok, mat] = regexp(name, '(\w+)_d\1', 'tokens', 'match');
+        if ~isempty(tok) %&& isfield(d, tok{1}{1})
+            name_without_pre_emphasis = tok{1}{1};
+        else
+            name_without_pre_emphasis = [];
+        end
+        
+        % Assign vector name for the result.
+        dest = ['grad' name_with_pre_emphasis];
+        if ~isempty(name_without_pre_emphasis)
+            dest = ['grad' name_without_pre_emphasis];
+        end
+        
+        % Assign input parameters for the gradient function.
+        scalar_vector_with_pre_emphasis       = d.(name_with_pre_emphasis);
+        scalar_info.name_without_pre_emphasis = name_without_pre_emphasis;
+        scalar_info.name_with_pre_emphasis    = name_with_pre_emphasis;
+        scalar_info.fs                        = d.fs_fast;
+        scalar_info.speed                     = d.speed_fast;
+        scalar_info.obj                       = obj;
+        scalar_info.method                    = p.gradT_method;
+
+        % Make the temperature gradient
+        d.(dest) = make_gradT_odas(...
+            scalar_vector_with_pre_emphasis, scalar_info);
     end
 end
 
@@ -883,7 +1055,7 @@ for ch = setupstr(obj, '', 'type', 'magn')
     name = setupstr(obj, char(ch), 'name');
     badname = [name{1} '_bad'];
     [d.(name{1}), d.(badname)] = ...
-        median_filter(d.(name{1}), [], 8*round(d.fs_slow), 1, 'st_dev', p.MF_k_mag);
+        median_filter(d.(name{1}), [], 8*round(d.fs_slow), 0, 'st_dev', p.MF_k_mag);
 end
 
 
@@ -1172,16 +1344,48 @@ function result = verify_mat_p_differ(fname_full, mat, params)
     % should then have their values compared.  One last catch - the fname
     % parameter should be excluded.
     for p = fieldnames(params)'
-        if isfield(mat.input_parameters, char(p)) && ...
-                ~strcmp('fname', char(p))
-            value1 = params.(char(p));
-            value2 = mat.input_parameters.(char(p));
-            if ischar(value1) && ~strcmpi(value1, value2) || ...
-                    isnumeric(value1) && ...
-                    ~isempty(value1) && ~isempty(value2) && value1 ~= value2
-                result = ['Input Parameters Differ: ' char(p)];
-                return
+        % Check if input parameter should be skipped
+        if ~isfield(mat.input_parameters, char(p)) || strcmp('fname', char(p))
+            continue
+        end
+        
+        value1 = params.(char(p));
+        value2 = mat.input_parameters.(char(p));
+            
+        % Skip when both parameters are empty
+        if isempty(value1) && isempty(value2)
+            continue
+        end
+            
+        % Error due to missing one parameter
+        if isempty(value1) || isempty(value2)
+            if isempty(value1)
+                result = ['Input parameters differ: e.g. ' char(p) ': new = [], old = ' num2str(value2)];
+            elseif isempty(value2)
+                result = ['Input parameters differ: e.g. ' char(p) ': new = ' num2str(value1) ', old = []'];
             end
+            
+            return
+        end
+        
+        % Both values are present, check if they differ.
+        % Three checks, check type, numeric, and string.        
+        if ~strcmp(class(value1), class(value2))
+           result = sprintf('Input Parameters Differ in Type: e.g. %s: new = %s, old = %s', ...
+                            char(p), class(value1), class(value2));
+           return
+        end
+            
+        if isnumeric(value1) && value1 ~= value2
+           result = sprintf('Input Parameters Differ: e.g. %s: new = %s, old = %s', ...
+                            char(p), num2str(value1), num2str(value2));
+           return
+        end
+
+        if ischar(value1) && ~strcmpi(value1, value2)
+           result = sprintf('Input Parameters Differ: e.g. %s: new = "%s", old = "%s"', ...
+                            char(p), value1, value2);
+           return
         end
     end
 end

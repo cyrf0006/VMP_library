@@ -1,5 +1,5 @@
 %% extract_odas
-% Extract a range of records from a RSI raw binary data file
+% Extract a range of records from a RSI raw binary data file.
 %%
 % <latex>\index{Functions!extract\_odas}</latex>
 %
@@ -99,8 +99,10 @@
 % * 2015-07-27 WID Documentation update.
 % * 2015-10-28 (RGL) Documentation corrections.
 % * 2015-11-18 (RGL) Documentation corrections.
+% * 2017-01-27 (WID) Added hidden option (4th argument) for optional
+%                    destination file.
 
-function [new_file, success_flag] = extract_odas(file_name, start_record, end_record)
+function [new_file, success_flag] = extract_odas(file_name, start_record, end_record, destination)
 
 success_flag = -1; % preset to failure
 
@@ -166,7 +168,11 @@ fseek(fid_in, length_of_first_record_in_bytes + 2*record_size*(start_record-1), 
 junk = fread(fid_in, record_size*(1+end_record - start_record), 'short'); % read the records
 fclose (fid_in);
 
-new_file = [N '_' num2str(start_record) '_' num2str(end_record) '.p'];
+if nargin >= 4
+    new_file = destination;
+else
+    new_file = [N '_' num2str(start_record) '_' num2str(end_record) '.p'];
+end
 if(endian_flag == 0 || endian_flag == 1), endian_string = 'l'; end;
 if(endian_flag == 2),                     endian_string = 'b'; end;
 fid_out = fopen (new_file, 'w', endian_string); % give OP file the same endian as IP file

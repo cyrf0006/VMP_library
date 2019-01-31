@@ -74,6 +74,8 @@
 % 2015-08-29, RGL, Change documentation.
 % 2015-11-18 RGL, Updated documentation.
 % 2015-12-23 RGL, Added check for 5 input arguments only.
+% 2017-01-26 RGL, Replaced interpolation with linspace function. I was
+%           getting size mis-match errors. 
 
 function [result, points] = median_filter( dIn, threshold, filterLen, ...
                                            extraPoints, stDev, k )
@@ -132,12 +134,15 @@ while true
     
     % Fill the gap
     d = ones(last-start+1,size(result,2));
-    
+%    size(d)
     for i = 1:size(result,2)
         if start_value(i) == last_value(i)
             d(:,i) = ones(last-start+1,1) * start_value(i);
         else
-            d(:,i) = (start_value(i):((last_value(i) - start_value(i)) / (last - start)):last_value(i))';
+%            [last start]
+%            [start_value(i) last_value(i)]
+            d(:,i) = linspace(start_value(i),last_value(i), size(d,1))';
+%            d(:,i) = (start_value(i):((last_value(i) - start_value(i)) / (last - start)):last_value(i))';
         end
     end
     

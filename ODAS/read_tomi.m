@@ -1,13 +1,13 @@
-%% read_tomi - EXCLUDED
+%% read_tomi
 % Read a range of records from an ODAS data file.
 %%
 % <latex>\index{Functions!read\_tomi}</latex>
 %
 %%% Syntax
 %
-%   [blocks, header, data] = read_tomi( fid, start_block, end_block, type )
+%   [blocks, header, data] = read_tomi( file, start_block, end_block, type )
 %
-% * [fid] file descriptor for an open ODAS data file
+% * [file] file descriptor for an open ODAS data file
 % * [start_block] block index of the first segment block
 % * [end_block] block index of the last segment block - inclusive.  Use
 %               "NaN" to specify the end of file.
@@ -20,12 +20,12 @@
 %
 %%% Description
 %
-% Read a range of blocks from an ODAS data file. This function is primarily used
-% by patch_odas but can also be used directly for the purpose of processing 
-% large data files into manageable portions.
+% Read a range of blocks from an ODAS data file. This function is primarily
+% used by patch_odas but can also be used directly for the purpose of
+% processing large data files into manageable portions. 
 % 
 % Also used to extract data from ODAS serial port data files.  When used
-% with serial port data, specify the type as 'uint8'.
+% with serial port data, specify type as 'uint8'.
 %
 %%% Examples
 %
@@ -36,6 +36,11 @@
 %    >> end
 %
 % Read the first block from the data file 'raw_data_file.p'.
+%
+%    >> [blks, header, data] = read_tomi( 'raw_data_file.p', 1, 1 );
+%
+% Read the first block from the data file 'raw_data_file.p' without having
+% to open and close the data file.
 %
 %    >> [fid, error] = fopen_odas( 'serial_data_file.s', 'r' );
 %    >> if isempty( error ),
@@ -53,13 +58,31 @@
 % * 2010-01-15 (AWS) support for odas v6 and up
 % * 2011-09-01 (AWS) added documentation tags for matlab publishing
 % * 2012-10-23 (WID) documentation added
-% * 3013-03-21 (WID) added support for extracting data from serial files.
+% * 2013-03-21 (WID) added support for extracting data from serial files
+% * 2017-03-23 (WID) allow file ID or file name input parameter
 
-function [blocks, header, data] = read_tomi(fid, start_block, end_block, type)
+function [blocks, header, data] = read_tomi(file, start_block, end_block, type)
 
 % set the default value for "type" - a 16bit signed word.
 if nargin <= 3,
     type = 'int16';
+end
+
+if ~ischar(file)
+    fid = file;
+else
+    if isempty(file)
+        file = input(['Enter data file name (default: ' get_latest_file '): '],'s');
+        if isempty(file), file = get_latest_file; end
+    end
+    
+    [P,name,E,path] = file_with_ext( file, {'','.p','.P'} );
+    if isempty(name), error('Unable to find file %s\n', file); end
+    
+    % Open the file
+    [fid, error_message] = fopen_odas(path,'r');
+    if ~isempty(error_message), warning(error_message);  end
+    if fid<3, error('Unable to open file %s\n', path); end   
 end
 
 fseek(fid,0,'bof');
@@ -148,5 +171,9 @@ if mendian ~= dendian, data = swapbytes(data); end
 % If not specifically requested, return the data as double values.
 if nargin <= 3,
     data = cast(data, 'double');
+end
+
+if ischar(file)
+    fclose(fid);
 end
 

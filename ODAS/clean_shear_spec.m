@@ -35,7 +35,9 @@
 % For best results and statistical significance, the length of the fft (nFFT) 
 % should be several times shorter than the length of the vectors, [size(U,1)], 
 % passed to this function. That is, several ffts have to be used to form an 
-% ensemble-averaged auto- and cross-spectrum.
+% ensemble-averaged auto- and cross-spectrum. The absolute minimum is
+% L >= nFFT * (0.5*size(A,2) + 1), or L >= 2*nFFT,
+% whichever is greater, where L = size(U,1), the length of the shear data.
 % 
 % @image @images/clean_shear_spectra.pdf @Coherent noise removal applied to shear
 % probe spectrum. @Original spectrum (thin green line) and after noise removal 
@@ -58,6 +60,8 @@
 %   spectral calculations. Redundant fft calls are eliminated. Speed
 %   improvement is about a factor of 2.
 % * 2015-11-18 RGL, Documentation changes.
+% * 2017-09-07 RGL, Applied new minimum length of shear data relative to
+%   nFFT. See documentation.
 
 function  [clean_UU, AA, UU, UA, F] = clean_shear_spec(A, U, n_fft, rate)
 
@@ -74,8 +78,11 @@ if ~isscalar(n_fft) || n_fft<2
     error('n_fft must be larger than 2.')
 end
 
-if (size(A,1) < 2*n_fft)
-    error('Vector lengths must be 2*n_fft or longer')
+if (size(A,1) < 2*n_fft) || (size(A,1) < n_fft * (size(A,2)/2 + 1))
+    error(['Vector length must be the larger of ' ...
+        '(2*nFFT), OR ' ...
+        '(nFFT * (size(A,2)/2 + 1)), ' ...
+        'or longer.'])
 end
 if ~isscalar(rate) || rate <= 0
     error('Sampling rate must be positive scalar')

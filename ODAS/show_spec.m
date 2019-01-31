@@ -52,7 +52,7 @@
 % located in the top right corner of the window. Data courtesy of Ilker Fer,
 % University of Bergen.
 %
-% Spectra of interest are exported using the "Export" button found at the
+% Spectra of interest are exported using the ``Export'' button found at the
 % top of the screen. This button opens a dialog box that simplifies the
 % saving of a plot into a file.
 %
@@ -94,8 +94,8 @@
 % 2015-07-29 WD Input arguments modified.
 % 2015-07-30 WD Rename to plot_spec
 % 2015-10-30 RGL Update documentation
-% 2015-11-23 RGL Renamed function to show_spec. Rebamed show_freq_sec and
-%       show_wave_expect ot plot_xxx_spec.
+% 2015-11-23 RGL Renamed function to show_spec. Renamed show_freq_spec and
+%       show_wave_spect ot plot_xxx_spec.
 
 function show_spec(diss, titleString)
 

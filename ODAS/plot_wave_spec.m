@@ -1,4 +1,4 @@
-%% plot_wave_spec - EXCLUDED
+%% plot_wave_spec
 % Plot wave spectra from dissipation structure
 %%
 % <latex>\index{Functions!show\_wave\_spec}</latex>
@@ -39,6 +39,13 @@
 % 2015-11-19 RGL, Added MAD to title.
 % 2015-11-23 RGL, Rename this function to plot_wave_spec to better reflect
 %     its purpose.
+% 2016-08-30 RGL, Replace MAD with FM (figure of merit) where 
+%     FM = MAD*sqrt(DOF), which should be independent of the number of
+%     fft-segments used to make a spectral estimate. Also, changed title
+%     string for wavenumber spectrum.
+% 2016-12-15 RGL, Changed legend to \nabla, the gradient symbol.
+% 2017-04-28 RGL, Check on scalar spectra was inadequate. Need to also
+%     check if it is empty. 
 
 function  ax = plot_wave_spec( ax, slice, diss, titleString )
 
@@ -71,26 +78,30 @@ scalar_names = [];
 we_have_scalar_spectra = false;
 
 if isfield(diss,'scalar_spectra') % we have scalar spectra as well
-     we_have_scalar_spectra = true; % get the 3D matrix of scalar spectra
-     % I assume that the length of the scalar spectra are identical to
-     % those of shear, and that the wavenumber and frequencies are the
-     % same.
-    scalar_names = diss.scalar_vector_list; % The cell array of names for the scalar signals.
+    if ~isempty(diss.scalar_spectra)
+        we_have_scalar_spectra = true; % get the 3D matrix of scalar spectra
+        % I assume that the length of the scalar spectra are identical to
+        % those of shear, and that the wavenumber and frequencies are the
+        % same.
+        scalar_names = diss.scalar_vector_list; % The cell array of names for the scalar signals.
+    end
 end
-    
+
     
 %%
 % The main loop
 
-e      = diss.e     (:,slice);
-K      = diss.K     (:,slice);
-F      = diss.F     (:,slice);
-method = diss.method(:,slice);
-mad    = diss.mad   (:,slice);
-speed  = diss.speed   (slice);
-P      = diss.P       (slice);
-K_max  = diss.K_max (:,slice);
-T      = diss.T       (slice);
+e        = diss.e        (:,slice);
+K        = diss.K        (:,slice);
+F        = diss.F        (:,slice);
+method   = diss.method   (:,slice);
+mad      = diss.mad      (:,slice);
+dof_e    = diss.dof_e    (:,slice);
+dof_spec = diss.dof_spec;
+speed    = diss.speed    (slice);
+P        = diss.P        (slice);
+K_max    = diss.K_max    (:,slice);
+T        = diss.T        (slice);
 Nasmyth_spec = diss.Nasmyth_spec(:,:,slice);
 
 P_string = 'P';
@@ -99,9 +110,13 @@ if time, P_string = 't'; unit_string = 's'; end
 
 title_string_K = {};
 if ~isempty(titleS), title_string_K{end+1} = titleS; end
-title_string_K{end+1} = ['Wavenumber Spectrum; Method = ' num2str(method') ', MAD = ' num2str(mad',2)];
+title_string_K{end+1} = ['\rm Wavenumber Spectrum'];
 title_string_K{end+1} = sprintf('Index = %i, %s = %0.1f %s, speed = %0.2f m s^{-1}, T = %0.3f^{\\circ}C', ...
                             slice, P_string, PD(slice), unit_string, speed, T);
+title_string_K{end+1} = [' Method = ', num2str(method'),';',...
+                        '   FM = [ ', num2str(mad' .* sqrt(dof_spec),2),' ];',...
+                        '   dof^{1/2} = [ ', num2str(round(sqrt(dof_e')),4),' ]'];
+% title_string_K{end+1} = [];
 
 
 %%
@@ -151,28 +166,36 @@ end
 plot_wish_list = {
     % Plot settings for all channels.
     % Name          Legend Title                        Colour  Size
-    {'P_sh1_clean', '\partial u_1/\partial z_{clean}',  'b',    3   }
-    {'P_sh1',       '\partial u_1/\partial z',          'b',    1.5 }
+    {'P_sh1_clean', '\nablau_1 clean', 'b',    3   }
+    {'P_sh1',       '\nablau_1',       'b',    1.5 }
     {'phi1',        e1_string,                          'k',    1.5 }
-    {'P_sh2_clean', '\partial u_2/\partial z_{clean}',  'r',    3   }
-    {'P_sh2',       '\partial u_2/\partial z',          'r',    1.5 }
+    {'P_sh2_clean', '\nablau_2 clean', 'r',    3   }
+    {'P_sh2',       '\nablau_2',       'r',    1.5 }
     {'phi2',        e2_string,                          'k',    1.5 }
-    {'P_sh3_clean', '\partial u_3/\partial z_{clean}',  'g',    3   }
-    {'P_sh3',       '\partial u_3/\partial z',          'g',    1.5 }
+    {'P_sh3_clean', '\nablau_3 clean', 'g',    3   }
+    {'P_sh3',       '\nablau_3',       'g',    1.5 }
     {'phi3',        e3_string,                          'k',    1.5 }
-    {'P_sh4_clean', '\partial u_4/\partial z_{clean}',  'm',    3   }
-    {'P_sh4',       '\partial u_4/\partial z',          'm',    1.5 }
+    {'P_sh4_clean', '\nablau_4 clean', 'm',    3   }
+    {'P_sh4',       '\nablau_4',       'm',    1.5 }
     {'phi4',        e4_string,                          'k',    1.5 }};
 
 if we_have_scalar_spectra
     % We need to do this because vector names cannot have indicies.
     for i = 1:size(P_scalar,2)
+        junk_names = scalar_names{i};
+        
+        if length(scalar_names{i}) > 1
+            scalar_names{i} = ['\nabla' junk_names(end-1) '_' junk_names(end)];
+        else
+            scalar_names{i} = ['\nabla' junk_names(end)];
+        end
+        
         temp = P_scalar(:,i);
-%        eval(['d.diss.P_scalar_' num2str(i) ' = temp;']);
+        %        eval(['d.diss.P_scalar_' num2str(i) ' = temp;']);
         eval(['P_scalar_' num2str(i) ' = temp;']);
         
-%        plot_wish_list{end+1} = ...
- %           {['d.diss.P_scalar_' num2str(i)], scalar_names{i}, my_colour(:,i), 2.0};
+        %        plot_wish_list{end+1} = ...
+        %           {['d.diss.P_scalar_' num2str(i)], scalar_names{i}, my_colour(:,i), 2.0};
         plot_wish_list{end+1} = ...
             {['P_scalar_' num2str(i)], scalar_names{i}, my_colour(:,i), 2.0};
     end

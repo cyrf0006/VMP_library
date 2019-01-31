@@ -92,6 +92,12 @@
 % * 2015-09-22 (WID) Print out the address matrix to the terminal.
 % * 2015-11-01 (RGL) Update documentation
 % * 2015-11-18 (RGL) Update documentation.
+% * 2016-12-29 (WID) Updated logic for converting signed to/from unsigned.
+% * 2017-05-09 (WID) Fixed reading of broken files - last segment now
+%                    correctly trimmed.  Some minor logic simplification.
+% * 2018-08-28 (JMM) Added a warning message if there is no channel section 
+%                    in the setup file for an id number that is in the address 
+%                    matrix.
 
 function [ch_list, outstruct] = read_odas( fname )
 
@@ -171,9 +177,9 @@ d.header_version = bitshift(HD(header_version_i), -8) + ...
 
 
 first_record_size = header_size*bytes_per_word + setupfile_size;
-n_records = (filesize - first_record_size)/(record_size*bytes_per_word);
+n_records = (filesize - first_record_size)/HD(block_size_i);
 
-if (n_records-floor(n_records))~=0
+if mod(n_records, 1)
     n_records = floor(n_records);
     warning(['The file ' d.fullPath ' does not contain an integer number of records']);
 end
@@ -181,9 +187,10 @@ if n_records <= 1
     error(['File ' d.fullPath ' contains no data'])
 end
 
-matrix_count = floor( ...
-    (filesize - first_record_size - n_records * header_size * bytes_per_word) / ...
-    (n_rows * n_cols * bytes_per_word));
+% Calculate a new file size after possibly trimming the data file.
+filesize = first_record_size + n_records * HD(block_size_i);
+
+matrix_count = floor( n_records * data_size / (n_rows * n_cols));
 
 d.t_slow = (0:matrix_count-1)' / d.fs_slow;
 d.t_fast = (0:matrix_count*n_rows-1)' / d.fs_fast;
@@ -211,6 +218,7 @@ for i = 1:length(rows)
     values = textscan(rows{i}, '%d');
     ch_matrix(i,:) = values{1}';
 end
+ch_all = unique(ch_matrix);
 
 % Print out the address matrix
 fprintf('\nAddress Matrix:\n');
@@ -232,6 +240,7 @@ else
     ch_names = {};
 end
 
+id_all = [];
 for section_name = setupstr(cfg, '')
     % No id, name, and type -- not a channel.
     if isempty(setupstr(cfg, section_name, 'id')),   continue; end
@@ -265,27 +274,35 @@ for section_name = setupstr(cfg, '')
             ch_names{end+1} = [namestr '_O'];
         end
     end
+    
+    id_all = [id_all tmpid];
 end
 
-% the file pointer should be at the beginning of the second record
+% Check if there is a channel section for each channel in address matrix
+ch_wrong = setdiff(ch_all,id_all);
+ch_wrong = ch_wrong(find(ch_wrong~=255));
+if length(ch_wrong)>0
+    for ch_num = ch_wrong
+        fprintf(2,'*********************************** WARNING ***************************************\n')
+        fprintf(2,'*  Channel %d: Present in address matrix but NOT as an ''id'' in channel section    *\n',ch_num)
+        fprintf(2,'*              Data collected on this channel will not be processed              *\n')
+        fprintf(2,'*              Setup file should be patched with correct ''id'' number              *\n')
+        fprintf(2,'*  Hit any key to continue, CTRL+C to exit                                        *\n')
+        fprintf(2,'***********************************************************************************\n'),pause
+    end
+end
+% The file pointer should be at the beginning of the second record
 
-% Read the file
-fileData = fread(fid, inf, 'short');
+% Read remailing file - use "filesize" to ensure we read an integer number
+% of records.  Using "inf" will cause problems with corrupted data files.
+fileData = fread(fid, (filesize - first_record_size)/bytes_per_word, 'short');
 fclose(fid);
-
-% Trim the file of any partial records - extra stuff just complicates
-% things.  Only trim if required - because it is slow.
-if mod(length(fileData), (header_size + data_size)) ~= 0
-    numRecords = floor(length(fileData) / (header_size + data_size));
-    fileData = fileData(1:numRecords*(header_size + data_size));
-end
 
 fileData = reshape(fileData, header_size + data_size, []);
 
 % Convert the header elements into unsigned values - they were read as
 % shorts.
 header = fileData(1:64,:);
-header = reshape(header, [], 1);
 header(header < 0) = header(header < 0) + 2^16;
 d.header = reshape(header, 64, []);
 
@@ -338,12 +355,8 @@ end
 for name = fieldnames(ch)'
     sign = char(setupstr(cfg, name, 'sign'));
     type = char(setupstr(cfg, name, 'type'));
-
-    if ~strcmpi(sign, 'unsigned')
-        continue
-    end
-
-    % These types have already been converted.
+    
+    % These types have already been converted and should be skipped.
     if strcmpi(type,'sbt') || ...
             strcmpi(type,'sbc') || ...
             strcmpi(type,'jac_c') || ...
@@ -351,8 +364,18 @@ for name = fieldnames(ch)'
             strcmpi(type,'o2_43f')
         continue
     end
+    
+    if strcmpi(sign, 'unsigned') 
+        % Find and adjust unsigned "negative" values.
+        ch.(name{1})(ch.(name{1})<0) = ch.(name{1})(ch.(name{1})<0) + 2^16;
+    else
+        % Find and adjust values too large to be signed.  This only applies
+        % to 32 bit values - all 32 bit channels not identified above are,
+        % by default, signed.
+        ch.(name{1})(ch.(name{1})>=2^31) = ...
+            ch.(name{1})(ch.(name{1})>=2^31) - 2^32;
+    end
 
-    ch.(name{1})(ch.(name{1})<0) = ch.(name{1})(ch.(name{1})<0) + 2^16;
 end
 
 % Take the transpose of the header - for backwards compatibility.
@@ -393,7 +416,6 @@ end
 % assuming you called read_odas as follows, perform the next command.
 %
 % >> [fields, data] = read_odas( 'datafile.p' );
-%
-% >> for i=fieldnames(data)', i=char(i); eval([i ' = data.' i ';']); end
+% >> for c=fieldnames(data)', eval([char(c) ' = data.' char(c) ';']); end
 
 end

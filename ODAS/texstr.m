@@ -8,15 +8,15 @@
 %
 % * [input] String, cell, or cell array to reformat.
 % * [escChars] String containing characters to interpret literally.
-%         Default is '_\'.
+%         Default is `_\'.
 % * []
 % * [result] Input with all specified characters prepended with a forward
-%         slash '\'. Output type is the same as the input type -- string,
+%         slash `\'. Output type is the same as the input type -- string,
 %         cell, or cell array.
 %
 %%% Description
 % Parse the input string and escape specified characters with a
-% forward slash '\'.  This allows the strings to be used with third
+% forward slash `\'.  This allows the strings to be used with third
 % party applications such as LaTeX and was originally written to 
 % facilitate underscore characters within Matlab plot labels. 
 

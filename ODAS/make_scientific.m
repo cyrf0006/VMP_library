@@ -7,7 +7,8 @@
 %   scString = make_scientific( N, Digits )
 %
 % * [N] Number to convert to scientific notation
-% * [Digits] Number of significant digits required in the output
+% * [digits] Number of significant digits required in the output
+% * [force] Force inclusion of exponent even when equal to 0
 % * []
 % * [scString] String representation of 'N' in scientific notation.  When 
 %         'N' is a vector of length greater than 1, 'scString' is a cell 
@@ -37,10 +38,13 @@
 % * 2012-09-03 (WID) documentation changed for Matlab publishing
 % * 2012-09-03 (WID) added support for matrix input / string array output
 % * 2012-11-05 (WID) documentation update
+% * 2016-06-21 (WID) when not forced, remove the exponent when close to 0
 
-function scString = make_scientific(N, Digits)
+function scString = make_scientific(N, Digits, force)
 
-if (~isnumeric(N) || ~isnumeric(Digits))
+if nargin < 3, force = false; end
+
+if ~isnumeric(N) || ~isnumeric(Digits)
     error ('Input must be a number')
 end
 
@@ -53,8 +57,12 @@ for Num = N,
     exponent = floor(M);
     mantissa = M - floor(M);
     mantissa = 10^(mantissa);
-    mantissa(n) = -mantissa(n); % return negative values to les than zero 
-    sc_string = [num2str(mantissa, Digits) ' \times 10^{' num2str(exponent) '}'];
+    mantissa(n) = -mantissa(n); % return negative values to les than zero
+    if force || exponent > 1 || exponent < -1
+        sc_string = [num2str(mantissa, Digits) ' \times 10^{' num2str(exponent) '}'];
+    else
+        sc_string = num2str(mantissa * 10^exponent, Digits);
+    end
     scString{end + 1} = sc_string;
 end
 
